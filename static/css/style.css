@@ -1,0 +1,877 @@
+/* 全局样式重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+}
+
+body {
+  background-color: #f5f7fa;
+  color: #333;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+}
+
+/* 头部样式 */
+.site-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+/* 顶部导航栏样式 */
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.header-top h1 {
+  margin: 0;
+  font-size: 2.2rem;
+  flex-shrink: 0;
+}
+
+.header-top .header-nav {
+  margin: 0;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.header-top .nav-link {
+  margin: 0;
+  padding: 8px 16px;
+}
+
+.site-header h1 {
+  color: #2c3e50;
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+}
+
+.site-header p {
+  color: #7f8c8d;
+  font-size: 1.1rem;
+}
+
+/* 头部导航样式 */
+.header-nav {
+  margin-top: 15px;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.nav-link {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #fff;
+  color: #3498db;
+  text-decoration: none;
+  border: 1px solid #3498db;
+  border-radius: 20px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+  background: #3498db;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-btn {
+  display: inline-block;
+  position: relative;
+  color: #3498db;
+  text-decoration: none;
+  font-size: 1rem;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #3498db;
+  margin-right: 10px;
+  margin-bottom: 15px;
+}
+
+.back-btn:hover {
+  background: #3498db;
+  color: #fff;
+  transition: all 0.3s ease;
+}
+
+/* 主内容区域样式 */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* 搜索区域样式 */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #eee;
+}
+
+.search-form {
+  width: 100%;
+  max-width: 700px;
+  position: relative;
+}
+
+.search-box {
+  display: flex;
+  background: #fff;
+  border-radius: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.search-box:focus-within {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.search-form input {
+  flex: 1;
+  padding: 18px 25px;
+  font-size: 1.1rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #333;
+}
+
+.search-form input::placeholder {
+  color: #999;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 35px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 5px;
+}
+
+.search-btn:hover {
+  background: linear-gradient(135deg, #2980b9, #21618c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.search-icon {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+/* 搜索建议样式 */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  margin-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+}
+
+.search-suggestions.show {
+  display: block;
+}
+
+.search-suggestion-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.search-suggestion-item:hover {
+  background-color: #f8f9fa;
+  padding-left: 25px;
+}
+
+.search-suggestion-item .icon {
+  color: #667eea;
+  font-size: 14px;
+}
+
+/* 搜索历史和热门搜索 */
+.search-history,
+.hot-searches {
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  width: 100%;
+  max-width: 700px;
+}
+
+.search-history h3,
+.hot-searches h3 {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.search-tag {
+  display: inline-block;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.search-tag:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 动画列表样式 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 25px;
+  margin-top: 20px;
+}
+
+/* 动画区域样式 */
+.anime-section {
+  margin-top: 40px;
+}
+
+.anime-section h2 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 25px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #3498db;
+}
+
+/* 动画网格样式 */
+.anime-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 25px;
+  margin-top: 30px;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+/* 动画卡片样式 */
+.anime-card {
+  background: #fff !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.3s ease !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.anime-card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 动画封面样式 */
+.anime-cover {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 280px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.anime-cover img {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transition: transform 0.4s ease !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+.anime-card:hover .anime-cover img {
+  transform: scale(1.08) !important;
+}
+
+/* 集数徽章样式 */
+.episode-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 107, 107, 0.9);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 动画链接样式 */
+.anime-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 搜索结果卡片样式 */
+.search-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.search-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.search-card .cover-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  position: static !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+.search-card .card-content {
+  padding: 20px;
+}
+
+/* 动画标题链接样式 */
+.anime-title-link {
+  text-decoration: none;
+  color: #333;
+  display: block;
+  padding: 15px;
+}
+
+/* 动画卡片标题样式 */
+.anime-card-title {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  line-height: 1.4;
+  transition: color 0.3s ease;
+  margin: 0;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anime-card:hover .anime-card-title {
+  color: #3498db;
+}
+
+/* 无动画样式 */
+.no-anime {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.no-anime p {
+  font-size: 1.2rem;
+  color: #7f8c8d;
+  margin: 0;
+}
+
+/* 动画链接样式 */
+.anime-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+
+.summary {
+  color: #555;
+  font-size: 0.95rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+/* 按钮样式 */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.play-btn {
+  display: inline-block;
+  padding: 10px 25px;
+  background-color: #2ecc71;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: background-color 0.3s ease;
+}
+
+.play-btn:hover {
+  background-color: #27ae60;
+}
+
+.no-video {
+  display: inline-block;
+  padding: 10px 25px;
+  background-color: #e74c3c;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+/* 多集视频列表样式 */
+.episode-list {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.episode-title {
+  font-size: 0.9rem;
+  color: #333;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.episode-btn {
+  display: inline-block;
+  padding: 6px 12px;
+  margin: 0 5px 8px 0;
+  background-color: #2ecc71;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.episode-btn:hover {
+  background-color: #27ae60;
+}
+
+/* 搜索结果头部样式 */
+.search-result-header {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  margin-bottom: 30px;
+}
+
+.header-content {
+  margin-bottom: 20px;
+}
+
+.search-result-info h1 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 8px;
+}
+
+.result-count {
+  color: #7f8c8d;
+  font-size: 0.95rem;
+}
+
+.result-search-form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* 结果容器样式 */
+.results-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 结果卡片样式 */
+.result-card {
+  display: flex;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.result-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.result-card-left {
+  width: 200px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.result-cover {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  overflow: hidden;
+  background: #f0f0f0;
+  border-radius: 8px;
+}
+
+.result-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+  /* 限制图片最大尺寸，确保性能和显示效果 */
+  max-width: 100%;
+  max-height: 100%;
+  /* 确保图片加载时不会导致布局跳动 */
+  display: block;
+}
+
+/* 首页动画封面样式优化 */
+.anime-cover img {
+  width: 100% !important;
+  height: 280px !important;
+  object-fit: cover !important;
+  transition: transform 0.4s ease !important;
+  max-width: 100% !important;
+  max-height: 280px !important;
+  display: block !important;
+}
+
+.result-card:hover .result-cover img {
+  transform: scale(1.05);
+}
+
+.play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+}
+
+.result-cover:hover .play-overlay {
+  opacity: 1;
+}
+
+.play-icon {
+  color: #fff;
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.result-card-right {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-title {
+  font-size: 1.4rem;
+  color: #2c3e50;
+  font-weight: 600;
+  margin: 0;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #ffb400, #ff8c00);
+  color: #fff;
+  border-radius: 15px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.result-summary {
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.result-actions {
+  margin-top: auto;
+}
+
+.episode-selector h4 {
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.episode-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.episode-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #f0f2f5;
+  color: #333;
+  text-decoration: none;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.episode-btn:hover {
+  background: #3498db;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.no-episodes {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* 无结果样式 */
+.no-result {
+  text-align: center;
+  padding: 80px 20px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.no-result-icon {
+  margin-bottom: 20px;
+  opacity: 0.3;
+}
+
+.no-result h2 {
+  font-size: 1.5rem;
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.no-result p {
+  font-size: 1.1rem;
+  color: #7f8c8d;
+  margin-bottom: 30px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.no-result-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.home-btn {
+  display: inline-block;
+  padding: 12px 30px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.home-btn:hover {
+  background: linear-gradient(135deg, #2980b9, #21618c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.retry-search {
+  width: 100%;
+  max-width: 400px;
+}
+
+.retry-search .search-box {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .result-card {
+    flex-direction: column;
+  }
+  
+  .result-card-left {
+    width: 100%;
+  }
+  
+  .result-cover {
+    height: 220px;
+  }
+  
+  .search-section {
+    padding: 40px 20px;
+  }
+  
+  .search-result-info h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* 页脚样式 */
+.site-footer {
+  text-align: center;
+  margin-top: 50px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .site-header h1 {
+    font-size: 2rem;
+  }
+
+  .back-btn {
+    position: static;
+    display: block;
+    margin-bottom: 20px;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-form input {
+    border-radius: 8px 8px 0 0;
+  }
+
+  .search-btn {
+    border-radius: 0 0 8px 8px;
+  }
+}

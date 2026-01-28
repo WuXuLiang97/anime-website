@@ -1,0 +1,1160 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"path" // 新增：处理URL路径
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+)
+
+// 配置结构体
+type Config struct {
+	Server   ServerConfig   `json:"server"`
+	Database DatabaseConfig `json:"database"`
+	Log      LogConfig      `json:"log"`
+}
+
+type ServerConfig struct {
+	Port int `json:"port"`
+}
+
+type DatabaseConfig struct {
+	DSN string `json:"dsn"`
+}
+
+type LogConfig struct {
+	Level string `json:"level"`
+}
+
+// 动画信息结构体
+type AnimeInfo struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	Title      string    `gorm:"size:255" json:"title"`
+	Summary    string    `gorm:"size:1000" json:"summary"`
+	Cover      string    `gorm:"size:255" json:"cover"`
+	VideoURL   string    `gorm:"size:255" json:"video_url"`
+	Episodes   int       `json:"episodes"`
+	FolderName string    `gorm:"size:255" json:"folder_name"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// 视频文件结构体
+type VideoFile struct {
+	Path     string `json:"path"`
+	FileName string `json:"file_name"`
+}
+
+// 批量处理结果
+type BatchResult struct {
+	Total   int      `json:"total"`
+	Success int      `json:"success"`
+	Failed  int      `json:"failed"`
+	Errors  []string `json:"errors"`
+}
+
+// 全局变量
+var (
+	config         Config
+	db             *gorm.DB
+	localMode      bool
+	videosDir      = "static/videos"
+	hlsDir         = "static/hls"
+	templatesDir   = "templates"
+	allowedFormats = []string{".mp4", ".flv", ".mkv", ".avi"}
+	maxWorkers     = 5 // 并发处理的最大工作线程数
+	logFile        *os.File
+	logger         *log.Logger
+)
+
+// 新增：标准化URL路径（关键修复）
+//确保路径使用正斜杠，无重复斜杠，无反斜杠
+
+func normalizeURLPath(p string) string {
+	// 替换所有反斜杠为正斜杠
+	p = strings.ReplaceAll(p, "\\", "/")
+	// 拆分路径并重新拼接，去除重复斜杠
+	parts := strings.FieldsFunc(p, func(r rune) bool {
+		return r == '/'
+	})
+	if len(parts) == 0 {
+		return "/"
+	}
+	// 确保路径以/开头
+	return "/" + strings.Join(parts, "/")
+}
+
+// 初始化配置
+func initConfig() {
+	configFile := "config.json"
+	content, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		// 使用标准库log，因为logger可能还未初始化
+		log.Printf("警告: 无法读取配置文件 %s: %v\n", configFile, err)
+		// 使用默认配置
+		config = Config{
+			Server: ServerConfig{
+				Port: 8080,
+			},
+			Database: DatabaseConfig{
+				DSN: "root:Wxl111222@tcp(localhost:3306)/anime_db?charset=utf8mb4&parseTime=True&loc=Local",
+			},
+			Log: LogConfig{
+				Level: "info",
+			},
+		}
+	} else {
+		err = json.Unmarshal(content, &config)
+		if err != nil {
+			// 使用标准库log，因为logger可能还未初始化
+			log.Printf("警告: 解析配置文件失败: %v\n", err)
+			// 使用默认配置
+			config = Config{
+				Server: ServerConfig{
+					Port: 8080,
+				},
+				Database: DatabaseConfig{
+					DSN: "root:Wxl111222@tcp(localhost:3306)/anime_db?charset=utf8mb4&parseTime=True&loc=Local",
+				},
+				Log: LogConfig{
+					Level: "info",
+				},
+			}
+		}
+	}
+}
+
+// 初始化日志
+func initLogger() {
+	var err error
+	logFile, err = os.OpenFile("app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("警告: 无法打开日志文件: %v\n", err)
+		logger = log.New(os.Stdout, "", log.LstdFlags)
+	} else {
+		logger = log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
+	}
+}
+
+// 初始化数据库
+func initDB() {
+	var err error
+	db, err = gorm.Open(mysql.Open(config.Database.DSN), &gorm.Config{})
+	if err != nil {
+		logger.Printf("错误: 无法连接到数据库: %v\n", err)
+		localMode = true
+		logger.Println("警告: 启用本地模式，将使用文件系统而不是数据库")
+		return
+	}
+
+	// 自动迁移表结构
+	err = db.AutoMigrate(&AnimeInfo{})
+	if err != nil {
+		logger.Printf("错误: 数据库迁移失败: %v\n", err)
+		localMode = true
+		logger.Println("警告: 启用本地模式，将使用文件系统而不是数据库")
+		return
+	}
+
+	logger.Println("数据库连接成功")
+}
+
+// 检查文件是否是视频文件
+func isVideoFile(filePath string) bool {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	for _, format := range allowedFormats {
+		if ext == format {
+			return true
+		}
+	}
+	return false
+}
+
+// 扫描本地视频文件
+func scanVideos() []AnimeInfo {
+	var animes []AnimeInfo
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+
+	// 确保视频目录存在
+	if _, err := os.Stat(videosDir); os.IsNotExist(err) {
+		logger.Printf("警告: 视频目录 %s 不存在，将创建\n", videosDir)
+		err = os.MkdirAll(videosDir, 0755)
+		if err != nil {
+			logger.Printf("错误: 创建视频目录失败: %v\n", err)
+			return animes
+		}
+	}
+
+	// 扫描视频目录
+	entries, err := ioutil.ReadDir(videosDir)
+	if err != nil {
+		logger.Printf("错误: 扫描视频目录失败: %v\n", err)
+		return animes
+	}
+
+	// 遍历子目录（每个子目录代表一个动画）
+	for _, entry := range entries {
+		if entry.IsDir() {
+			animeFolder := filepath.Join(videosDir, entry.Name())
+			animeName := entry.Name()
+
+			wg.Add(1)
+			go func(folder, name string) {
+				defer wg.Done()
+
+				// 扫描动画目录中的视频文件
+				videoFiles, err := ioutil.ReadDir(folder)
+				if err != nil {
+					logger.Printf("警告: 扫描动画目录 %s 失败: %v\n", folder, err)
+					return
+				}
+
+				var videos []VideoFile
+				for _, file := range videoFiles {
+					if !file.IsDir() && isVideoFile(file.Name()) {
+						// 修复：使用path.Join构建URL路径，再标准化
+						videoPath := normalizeURLPath(path.Join("/", videosDir, name, file.Name()))
+						videos = append(videos, VideoFile{
+							Path:     videoPath,
+							FileName: file.Name(),
+						})
+					}
+				}
+
+				// 如果有视频文件，创建动画信息
+				if len(videos) > 0 {
+					// 按文件名排序
+					sort.Slice(videos, func(i, j int) bool {
+						return videos[i].FileName < videos[j].FileName
+					})
+
+					// 使用第一个视频文件作为主视频
+					mainVideo := videos[0]
+
+					// 检查封面文件
+					coverURL := "/static/css/default-cover.jpg" // 默认封面
+					coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
+
+					for _, format := range coverFormats {
+						coverPath := filepath.Join(folder, format)
+						if _, err := os.Stat(coverPath); err == nil {
+							// 修复：标准化封面URL路径
+							coverURL = normalizeURLPath(path.Join("/", videosDir, name, format))
+							break
+						}
+					}
+
+					anime := AnimeInfo{
+						Title:      name,
+						Summary:    fmt.Sprintf("这是一部名为 %s 的动画", name),
+						Cover:      coverURL,
+						VideoURL:   mainVideo.Path,
+						Episodes:   len(videos),
+						FolderName: name,
+					}
+
+					// 检查是否有HLS切片
+					hlsPath := getHLSURL(mainVideo.Path)
+					if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
+						anime.VideoURL = hlsPath
+					}
+
+					mutex.Lock()
+					animes = append(animes, anime)
+					mutex.Unlock()
+
+					// 更新或插入到数据库
+					if !localMode {
+						updateAnimeInfo(anime)
+					}
+				}
+			}(animeFolder, animeName)
+		}
+	}
+
+	wg.Wait()
+
+	// 按标题排序
+	sort.Slice(animes, func(i, j int) bool {
+		return animes[i].Title < animes[j].Title
+	})
+
+	return animes
+}
+
+// 更新动画信息到数据库
+func updateAnimeInfo(anime AnimeInfo) {
+	var existingAnime AnimeInfo
+	result := db.Where("folder_name = ?", anime.FolderName).First(&existingAnime)
+
+	if result.Error == nil {
+		// 更新现有记录
+		existingAnime.Title = anime.Title
+		existingAnime.Summary = anime.Summary
+		existingAnime.Cover = anime.Cover
+		existingAnime.VideoURL = anime.VideoURL
+		existingAnime.Episodes = anime.Episodes
+		existingAnime.UpdatedAt = time.Now()
+
+		result = db.Save(&existingAnime)
+		if result.Error != nil {
+			logger.Printf("错误: 更新动画信息失败: %v\n", result.Error)
+		}
+	} else if result.Error == gorm.ErrRecordNotFound {
+		// 创建新记录
+		anime.CreatedAt = time.Now()
+		anime.UpdatedAt = time.Now()
+
+		result = db.Create(&anime)
+		if result.Error != nil {
+			logger.Printf("错误: 创建动画信息失败: %v\n", result.Error)
+		}
+	} else {
+		logger.Printf("错误: 查询动画信息失败: %v\n", result.Error)
+	}
+}
+
+// 从数据库获取动画信息
+func getAnimesFromDB() []AnimeInfo {
+	var animes []AnimeInfo
+	result := db.Find(&animes)
+	if result.Error != nil {
+		logger.Printf("错误: 从数据库获取动画信息失败: %v\n", result.Error)
+		return scanVideos() // 回退到扫描本地文件
+	}
+	return animes
+}
+
+// 搜索动画
+func searchAnimes(keyword string) []AnimeInfo {
+	var animes []AnimeInfo
+
+	if !localMode {
+		result := db.Where("title LIKE ? OR folder_name LIKE ?", "%"+keyword+"%", "%"+keyword+"%").Find(&animes)
+		if result.Error != nil {
+			logger.Printf("错误: 搜索动画失败: %v\n", result.Error)
+			// 回退到本地搜索
+			animes = scanVideos()
+		} else {
+			return animes
+		}
+	}
+
+	// 本地搜索
+	allAnimes := scanVideos()
+	for _, anime := range allAnimes {
+		if strings.Contains(strings.ToLower(anime.Title), strings.ToLower(keyword)) ||
+			strings.Contains(strings.ToLower(anime.FolderName), strings.ToLower(keyword)) {
+			animes = append(animes, anime)
+		}
+	}
+
+	return animes
+}
+
+// 获取动画信息
+func getAnimeInfo(folderName string) (AnimeInfo, bool) {
+	var anime AnimeInfo
+
+	if !localMode {
+		result := db.Where("folder_name = ?", folderName).First(&anime)
+		if result.Error == nil {
+			return anime, true
+		} else if result.Error != gorm.ErrRecordNotFound {
+			logger.Printf("错误: 获取动画信息失败: %v\n", result.Error)
+		}
+	}
+
+	// 回退到本地搜索
+	animeFolder := filepath.Join(videosDir, folderName)
+	if _, err := os.Stat(animeFolder); os.IsNotExist(err) {
+		return anime, false
+	}
+
+	// 扫描动画目录中的视频文件
+	videoFiles, err := ioutil.ReadDir(animeFolder)
+	if err != nil {
+		logger.Printf("警告: 扫描动画目录 %s 失败: %v\n", animeFolder, err)
+		return anime, false
+	}
+
+	var videos []VideoFile
+	for _, file := range videoFiles {
+		if !file.IsDir() && isVideoFile(file.Name()) {
+			// 修复：标准化视频URL路径
+			videoPath := normalizeURLPath(path.Join("/", videosDir, folderName, file.Name()))
+			videos = append(videos, VideoFile{
+				Path:     videoPath,
+				FileName: file.Name(),
+			})
+		}
+	}
+
+	if len(videos) > 0 {
+		// 按文件名排序
+		sort.Slice(videos, func(i, j int) bool {
+			return videos[i].FileName < videos[j].FileName
+		})
+
+		// 使用第一个视频文件作为主视频
+		mainVideo := videos[0]
+
+		// 检查封面文件
+		coverURL := "/static/css/default-cover.jpg" // 默认封面
+		coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
+
+		for _, format := range coverFormats {
+			coverPath := filepath.Join(animeFolder, format)
+			if _, err := os.Stat(coverPath); err == nil {
+				// 修复：标准化封面URL路径
+				coverURL = normalizeURLPath(path.Join("/", videosDir, folderName, format))
+				break
+			}
+		}
+
+		anime = AnimeInfo{
+			Title:      folderName,
+			Summary:    fmt.Sprintf("这是一部名为 %s 的动画", folderName),
+			Cover:      coverURL,
+			VideoURL:   mainVideo.Path,
+			Episodes:   len(videos),
+			FolderName: folderName,
+		}
+
+		// 检查是否有HLS切片
+		hlsPath := getHLSURL(mainVideo.Path)
+		if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
+			anime.VideoURL = hlsPath
+		}
+
+		return anime, true
+	}
+
+	return anime, false
+}
+
+// 获取动画的所有视频文件
+func getAnimeVideos(folderName string) []VideoFile {
+	var videos []VideoFile
+	// 使用map跟踪已添加的视频，避免重复
+	addedVideos := make(map[string]bool)
+
+	animeFolder := filepath.Join(videosDir, folderName)
+
+	// 1. 扫描原始视频目录
+	if _, err := os.Stat(animeFolder); err == nil {
+		// 扫描动画目录中的视频文件
+		videoFiles, err := ioutil.ReadDir(animeFolder)
+		if err == nil {
+			for _, file := range videoFiles {
+				if !file.IsDir() && isVideoFile(file.Name()) {
+					// 构建视频URL路径
+					videoPath := normalizeURLPath(path.Join("/", videosDir, folderName, file.Name()))
+					
+					// 检查是否有HLS切片
+					hlsPath := getHLSURL(videoPath)
+					if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
+						videoPath = hlsPath
+					}
+					
+					// 避免重复添加
+					if !addedVideos[videoPath] {
+						videos = append(videos, VideoFile{
+							Path:     videoPath,
+							FileName: file.Name(),
+						})
+						addedVideos[videoPath] = true
+					}
+				}
+			}
+		}
+	}
+
+	// 2. 扫描HLS目录，查找该动画的HLS切片
+	hlsAnimePath := filepath.Join(hlsDir, folderName)
+	if _, err := os.Stat(hlsAnimePath); err == nil {
+		hlsEntries, err := ioutil.ReadDir(hlsAnimePath)
+		if err == nil {
+			for _, entry := range hlsEntries {
+				if entry.IsDir() {
+					// 检查是否存在playlist.m3u8文件
+					playlistPath := filepath.Join(hlsAnimePath, entry.Name(), "playlist.m3u8")
+					if _, err := os.Stat(playlistPath); err == nil {
+						// 构建HLS URL路径
+						hlsURL := normalizeURLPath(path.Join("/", hlsDir, folderName, entry.Name(), "playlist.m3u8"))
+						
+						// HLS视频使用实际目录名（不含扩展名），更符合实际播放格式
+						hlsFileName := entry.Name()
+						
+						// 避免重复添加
+						if !addedVideos[hlsURL] {
+							videos = append(videos, VideoFile{
+								Path:     hlsURL,
+								FileName: hlsFileName,
+							})
+							addedVideos[hlsURL] = true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 按文件名排序
+	sort.Slice(videos, func(i, j int) bool {
+		return videos[i].FileName < videos[j].FileName
+	})
+
+	return videos
+}
+
+// 获取HLS目录（文件系统路径）
+func getHLSDir(videoPath string) string {
+	// 修复：先标准化URL路径，再转换为文件系统路径
+	normalizedPath := normalizeURLPath(videoPath)
+	// 移除URL前缀 /static/videos/
+	relativePath := strings.TrimPrefix(normalizedPath, "/static/videos/")
+	// 移除文件扩展名
+	baseName := strings.TrimSuffix(relativePath, filepath.Ext(relativePath))
+	// 构建HLS目录路径（文件系统路径，用filepath.Join）
+	hlsDirPath := filepath.Join(hlsDir, baseName)
+	return hlsDirPath
+}
+
+// 获取HLS URL（URL路径）
+func getHLSURL(videoPath string) string {
+	// 修复：先标准化URL路径
+	normalizedPath := normalizeURLPath(videoPath)
+	// 移除URL前缀 /static/videos/
+	relativePath := strings.TrimPrefix(normalizedPath, "/static/videos/")
+	// 移除文件扩展名
+	baseName := strings.TrimSuffix(relativePath, path.Ext(relativePath)) // 使用path.Ext处理URL扩展名
+	// 构建HLS URL（用path.Join确保正斜杠）
+	hlsURL := normalizeURLPath(path.Join("/", hlsDir, baseName, "playlist.m3u8"))
+	return hlsURL
+}
+
+// 生成HLS切片（无转码，仅切片）
+func generateHLS(videoPath string) error {
+	// 构建HLS目录路径
+	hlsDirPath := getHLSDir(videoPath)
+	
+	// 确保HLS目录存在
+	err := os.MkdirAll(hlsDirPath, 0755)
+	if err != nil {
+		return fmt.Errorf("创建HLS目录失败: %v", err)
+	}
+
+	// 构建输出文件路径
+	playlistPath := filepath.Join(hlsDirPath, "playlist.m3u8")
+	segmentPath := filepath.Join(hlsDirPath, "segment_%03d.ts")
+
+	// 修复：转换URL路径为文件系统路径（处理Windows）
+	videoFilePath := strings.TrimPrefix(normalizeURLPath(videoPath), "/")
+	// Windows下需要将/转换为\
+	videoFilePath = filepath.FromSlash(videoFilePath)
+
+	// 构建FFmpeg命令（无转码，仅切片）
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", videoFilePath,
+		"-c:v", "copy",  // 直接复制视频流，不转码
+		"-c:a", "copy",  // 直接复制音频流，不转码
+		"-hls_time", "10",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", segmentPath,
+		playlistPath,
+	)
+
+	// 执行命令
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("执行FFmpeg命令失败: %v, 输出: %s", err, string(output))
+	}
+
+	// 删除原始.mp4文件
+	if strings.HasSuffix(strings.ToLower(videoFilePath), ".mp4") {
+		err = os.Remove(videoFilePath)
+		if err != nil {
+			logger.Printf("警告: 删除原始文件失败: %v\n", err)
+			// 不返回错误，继续执行
+		} else {
+			logger.Printf("成功删除原始文件: %s\n", videoFilePath)
+		}
+	}
+
+	return nil
+}
+
+// 生成HLS切片（使用GPU加速，无转码）
+func generateHLSHighQuality(videoPath string) error {
+	// 构建HLS目录路径
+	hlsDirPath := getHLSDir(videoPath)
+	
+	// 确保HLS目录存在
+	err := os.MkdirAll(hlsDirPath, 0755)
+	if err != nil {
+		return fmt.Errorf("创建HLS目录失败: %v", err)
+	}
+
+	// 构建输出文件路径
+	playlistPath := filepath.Join(hlsDirPath, "playlist.m3u8")
+	segmentPath := filepath.Join(hlsDirPath, "segment_%03d.ts")
+
+	// 修复：转换URL路径为文件系统路径
+	videoFilePath := strings.TrimPrefix(normalizeURLPath(videoPath), "/")
+	videoFilePath = filepath.FromSlash(videoFilePath)
+
+	// 构建FFmpeg命令（使用GPU加速，无转码）
+	cmd := exec.Command(
+		"ffmpeg",
+		"-hwaccel", "cuda",  // 使用GPU硬件加速
+		"-i", videoFilePath,
+		"-c:v", "copy",      // 直接复制视频流，不转码
+		"-c:a", "copy",      // 直接复制音频流，不转码
+		"-hls_time", "10",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", segmentPath,
+		playlistPath,
+	)
+
+	// 执行命令
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		// 如果GPU加速失败，尝试使用CPU
+		logger.Printf("警告: GPU加速失败，尝试使用CPU: %v\n", err)
+		return generateHLS(videoPath)
+	}
+
+	// 删除原始.mp4文件
+	// 使用已定义的videoFilePath变量，不需要重新定义
+	
+	if strings.HasSuffix(strings.ToLower(videoFilePath), ".mp4") {
+		err = os.Remove(videoFilePath)
+		if err != nil {
+			logger.Printf("警告: 删除原始文件失败: %v\n", err)
+			// 不返回错误，继续执行
+		} else {
+			logger.Printf("成功删除原始文件: %s\n", videoFilePath)
+		}
+	}
+
+	return nil
+}
+
+// 全局变量：用于存储当前的批量处理上下文
+var batchProcessingContexts = make(map[string]map[string]interface{})
+var batchProcessingMutex sync.Mutex
+
+// 批量生成HLS切片
+func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[string]interface{}, stopChan <-chan struct{}) (int, int, int, int, []string) {
+	total := len(videos)
+	success := 0
+	failed := 0
+	skipped := 0 // 新增：记录跳过的视频数
+	var errors []string
+
+	// 使用信号量控制并发
+	semaphore := make(chan struct{}, maxWorkers)
+	var wg sync.WaitGroup
+
+	for i, videoPath := range videos {
+		// 检查是否需要停止
+		select {
+		case <-stopChan:
+			// 发送停止消息
+			progressChan <- map[string]interface{}{
+				"type":      "stop",
+				"message":   "处理已停止",
+				"timestamp": time.Now().Format(time.RFC3339),
+			}
+			// 等待已开始的任务完成
+			wg.Wait()
+			return total, success, failed, skipped, errors
+		default:
+			// 继续处理
+		}
+
+		// 修复：标准化视频路径
+		normalizedPath := normalizeURLPath(videoPath)
+		
+		// 检查HLS切片是否已存在
+		hlsPath := getHLSURL(normalizedPath)
+		hlsFilePath := strings.TrimPrefix(hlsPath, "/")
+		
+		if _, err := os.Stat(hlsFilePath); err == nil {
+			// HLS切片已存在，跳过处理
+			skipped++
+			progressChan <- map[string]interface{}{
+				"type":      "skipped",
+				"video":     normalizedPath,
+				"message":   "HLS切片已存在，跳过处理",
+				"timestamp": time.Now().Format(time.RFC3339),
+			}
+			continue
+		}
+
+		wg.Add(1)
+		semaphore <- struct{}{} // 获取信号量
+
+		go func(idx int, path string) {
+			defer func() {
+				wg.Done()
+				<-semaphore // 释放信号量
+			}()
+
+			// 发送进度更新
+			progressChan <- map[string]interface{}{
+				"type":      "progress",
+				"current":   idx + 1,
+				"total":     total,
+				"video":     path,
+				"status":    "processing",
+				"timestamp": time.Now().Format(time.RFC3339),
+			}
+
+			// 生成HLS切片
+			var err error
+			if useGPU {
+				err = generateHLSHighQuality(path)
+			} else {
+				err = generateHLS(path)
+			}
+
+			if err != nil {
+				failed++
+				errorMsg := fmt.Sprintf("视频 %s 生成失败: %v", path, err)
+				errors = append(errors, errorMsg)
+				logger.Printf("错误: %s\n", errorMsg)
+
+				// 发送错误更新
+				progressChan <- map[string]interface{}{
+					"type":      "error",
+					"video":     path,
+					"message":   err.Error(),
+					"timestamp": time.Now().Format(time.RFC3339),
+				}
+			} else {
+				success++
+				logger.Printf("成功: 视频 %s 生成HLS切片完成\n", path)
+
+				// 发送成功更新
+				progressChan <- map[string]interface{}{
+					"type":      "success",
+					"video":     path,
+					"timestamp": time.Now().Format(time.RFC3339),
+				}
+			}
+		}(i, normalizedPath)
+	}
+
+	wg.Wait()
+	close(progressChan)
+
+	return total, success, failed, skipped, errors
+}
+
+// 首页路由
+func indexHandler(c *gin.Context) {
+	// 获取showAll参数
+	showAll := c.Query("showAll") == "true"
+
+	// 获取动画列表
+	var animes []AnimeInfo
+	if !localMode {
+		animes = getAnimesFromDB()
+	}
+	if len(animes) == 0 {
+		animes = scanVideos()
+	}
+
+	// 限制显示数量
+	var displayAnimes []AnimeInfo
+	if showAll {
+		displayAnimes = animes
+	} else {
+		limit := 10
+		if len(animes) > limit {
+			displayAnimes = animes[:limit]
+		} else {
+			displayAnimes = animes
+		}
+	}
+
+	// 渲染模板
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"Animes":      displayAnimes,
+		"ShowAll":     showAll,
+		"TotalAnimes": len(animes),
+	})
+}
+
+// 搜索路由
+func searchHandler(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+
+	// 搜索动画
+	animes := searchAnimes(keyword)
+
+	// 渲染模板
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"Animes":  animes,
+		"Keyword": keyword,
+	})
+}
+
+// 播放路由
+func playHandler(c *gin.Context) {
+	// 获取参数
+	videoURL := c.Query("video")
+	title := c.Query("title")
+	summary := c.Query("summary")
+	keyword := c.Query("keyword")
+
+	if videoURL == "" {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+
+	// 修复：标准化视频URL
+	videoURL = normalizeURLPath(videoURL)
+
+	// 获取动画信息
+	var anime AnimeInfo
+	var found bool
+	if keyword != "" {
+		anime, found = getAnimeInfo(keyword)
+		if found {
+			title = anime.Title
+			summary = anime.Summary
+		}
+	}
+
+	// 获取动画的所有视频文件
+	var videoList []VideoFile
+	if keyword != "" {
+		videoList = getAnimeVideos(keyword)
+	}
+
+	// 检查是否有HLS切片，如果没有则生成
+	if !strings.Contains(videoURL, "/hls/") && isVideoFile(videoURL) {
+		hlsPath := getHLSURL(videoURL)
+		hlsFilePath := strings.TrimPrefix(hlsPath, "/")
+		hlsFilePath = filepath.FromSlash(hlsFilePath)
+		
+		if _, err := os.Stat(hlsFilePath); os.IsNotExist(err) {
+			// 生成HLS切片
+			logger.Printf("生成HLS切片: %s\n", videoURL)
+			err = generateHLSHighQuality(videoURL)
+			if err == nil {
+				videoURL = hlsPath
+				logger.Printf("HLS切片生成成功: %s\n", hlsPath)
+			} else {
+				logger.Printf("警告: 生成HLS切片失败: %v\n", err)
+			}
+		} else {
+			// 使用已有的HLS切片
+			videoURL = hlsPath
+		}
+	}
+
+	// 渲染模板
+	c.HTML(http.StatusOK, "play.html", gin.H{
+		"Title":     title,
+		"Summary":   summary,
+		"VideoURL":  videoURL,
+		"VideoList": videoList,
+		"Keyword":   keyword,
+		"Cover":     anime.Cover,
+	})
+}
+
+// 播放记录路由
+func historyHandler(c *gin.Context) {
+	// 渲染模板
+	c.HTML(http.StatusOK, "history.html", gin.H{})
+}
+
+// HLS批量生成页面路由
+func hlsHandler(c *gin.Context) {
+	// 渲染模板
+	c.HTML(http.StatusOK, "hls.html", gin.H{})
+}
+
+// 视频列表API路由
+func videoListHandler(c *gin.Context) {
+	// 扫描所有视频
+	var videos []string
+	// 使用map跟踪已添加的视频，避免重复
+	addedVideos := make(map[string]bool)
+
+	// 1. 扫描原始视频目录
+	entries, err := ioutil.ReadDir(videosDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "扫描视频目录失败"})
+		return
+	}
+
+	// 遍历子目录（每个子目录代表一个动画）
+	for _, entry := range entries {
+		if entry.IsDir() {
+			animeFolder := filepath.Join(videosDir, entry.Name())
+
+			// 扫描动画目录中的视频文件
+			videoFiles, err := ioutil.ReadDir(animeFolder)
+			if err != nil {
+				continue
+			}
+
+			for _, file := range videoFiles {
+				if !file.IsDir() && isVideoFile(file.Name()) {
+					// 构建视频URL路径
+					videoPath := normalizeURLPath(path.Join("/", videosDir, entry.Name(), file.Name()))
+					
+					// 检查是否有对应的HLS切片
+					hlsPath := getHLSURL(videoPath)
+					hlsFilePath := strings.TrimPrefix(hlsPath, "/")
+					if _, err := os.Stat(hlsFilePath); err == nil {
+						// 如果HLS切片存在，使用HLS路径
+						videoPath = hlsPath
+					}
+					
+					// 避免重复添加
+					if !addedVideos[videoPath] {
+						videos = append(videos, videoPath)
+						addedVideos[videoPath] = true
+					}
+				}
+			}
+		}
+	}
+
+	// 2. 扫描HLS目录，确保即使原始文件被删除，HLS视频也能被发现
+	hlsEntries, err := ioutil.ReadDir(hlsDir)
+	if err == nil {
+		for _, entry := range hlsEntries {
+			if entry.IsDir() {
+				// 检查是否存在playlist.m3u8文件
+				playlistPath := filepath.Join(hlsDir, entry.Name(), "playlist.m3u8")
+				if _, err := os.Stat(playlistPath); err == nil {
+					// 构建HLS URL路径
+					hlsURL := normalizeURLPath(path.Join("/", hlsDir, entry.Name(), "playlist.m3u8"))
+					
+					// 避免重复添加
+					if !addedVideos[hlsURL] {
+						videos = append(videos, hlsURL)
+						addedVideos[hlsURL] = true
+					}
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"videos": videos})
+}
+
+// 批量生成HLS切片API路由
+func batchHLSHandler(c *gin.Context) {
+	// 设置响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+
+	// 读取请求体
+	var request struct {
+		Videos []string `json:"videos"`
+		UseGPU bool     `json:"useGPU"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.String(http.StatusBadRequest, "data: {\"type\": \"error\", \"message\": \"无效的请求参数\"}\n\n")
+		return
+	}
+
+	// 检查参数
+	if len(request.Videos) == 0 {
+		c.String(http.StatusBadRequest, "data: {\"type\": \"error\", \"message\": \"请选择要处理的视频\"}\n\n")
+		return
+	}
+
+	// 修复：标准化所有请求的视频路径
+	normalizedVideos := make([]string, len(request.Videos))
+	for i, v := range request.Videos {
+		normalizedVideos[i] = normalizeURLPath(v)
+	}
+
+	// 生成处理ID
+	processID := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	// 创建进度通道和停止通道
+	progressChan := make(chan map[string]interface{})
+	stopChan := make(chan struct{})
+
+	// 存储处理上下文
+	batchProcessingMutex.Lock()
+	batchProcessingContexts[processID] = map[string]interface{}{
+		"stopChan": stopChan,
+		"progressChan": progressChan,
+		"startTime": time.Now(),
+	}
+	batchProcessingMutex.Unlock()
+
+	// 发送处理ID
+	c.Writer.Header().Set("X-Process-ID", processID)
+	c.Writer.Flush()
+
+	// 启动批量处理
+	go func() {
+		total, success, failed, skipped, errors := batchGenerateHLS(normalizedVideos, request.UseGPU, progressChan, stopChan)
+
+		// 发送完成消息
+		progressChan <- map[string]interface{}{
+			"type":     "complete",
+			"total":    total,
+			"success":  success,
+			"failed":   failed,
+			"skipped":  skipped,
+			"errors":   errors,
+			"timestamp": time.Now().Format(time.RFC3339),
+		}
+
+		// 关闭通道
+		close(progressChan)
+
+		// 清理处理上下文
+		batchProcessingMutex.Lock()
+		delete(batchProcessingContexts, processID)
+		batchProcessingMutex.Unlock()
+	}()
+
+	// 发送进度更新
+	for progress := range progressChan {
+		data, err := json.Marshal(progress)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		c.Writer.Flush()
+	}
+}
+
+// 停止批量处理API路由
+func stopBatchHLSHandler(c *gin.Context) {
+	// 读取处理ID
+	processID := c.Query("processId")
+	if processID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少处理ID"})
+		return
+	}
+
+	// 查找处理上下文
+	batchProcessingMutex.Lock()
+	ctx, exists := batchProcessingContexts[processID]
+	batchProcessingMutex.Unlock()
+
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "处理不存在或已完成"})
+		return
+	}
+
+	// 发送停止信号
+	if stopChan, ok := ctx["stopChan"].(chan struct{}); ok {
+		close(stopChan)
+	}
+
+	// 清理处理上下文
+	batchProcessingMutex.Lock()
+	delete(batchProcessingContexts, processID)
+	batchProcessingMutex.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{"message": "处理已停止"})
+}
+
+// 主函数
+func main() {
+	// 初始化日志
+	initLogger()
+	defer func() {
+		if logFile != nil {
+			logFile.Close()
+		}
+	}()
+
+	// 初始化配置
+	initConfig()
+
+	// 初始化数据库
+	initDB()
+
+	// 确保HLS目录存在
+	if _, err := os.Stat(hlsDir); os.IsNotExist(err) {
+		logger.Printf("创建HLS目录: %s\n", hlsDir)
+		err = os.MkdirAll(hlsDir, 0755)
+		if err != nil {
+			logger.Printf("错误: 创建HLS目录失败: %v\n", err)
+		}
+	}
+
+	// 设置Gin模式
+	if config.Log.Level == "debug" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// 创建Gin引擎
+	r := gin.Default()
+
+	// 加载模板
+	r.LoadHTMLGlob(filepath.Join(templatesDir, "*.html"))
+
+	// 静态文件服务
+	r.Static("/static", "./static")
+
+	// 路由
+	r.GET("/", indexHandler)
+	r.GET("/search", searchHandler)
+	r.GET("/play", playHandler)
+	r.GET("/history", historyHandler)
+	r.GET("/hls", hlsHandler)
+	r.GET("/api/videos", videoListHandler)
+	r.POST("/api/batch-hls", batchHLSHandler)
+	r.POST("/api/batch-hls/stop", stopBatchHLSHandler)
+
+	// 启动服务器
+	port := config.Server.Port
+	logger.Printf("服务器启动成功！监听端口: %d\n", port)
+	logger.Printf("访问地址: http://localhost:%d\n", port)
+	logger.Printf("HLS批量生成页面: http://localhost:%d/hls\n", port)
+
+	// 异步扫描视频
+	go func() {
+		logger.Println("开始异步同步本地动画到数据库...")
+		scanVideos()
+		logger.Println("异步同步本地动画到数据库完成！")
+	}()
+
+	err := r.Run(fmt.Sprintf(":%d", port))
+	if err != nil {
+		logger.Fatalf("服务器启动失败: %v\n", err)
+	}
+}
