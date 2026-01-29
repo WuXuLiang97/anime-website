@@ -274,6 +274,14 @@ func scanVideos() []AnimeInfo {
 					coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
 
 					for _, format := range coverFormats {
+						// 先检查HLS目录中的封面文件
+						hlsCoverPath := filepath.Join(hlsDir, name, format)
+						if _, err := os.Stat(hlsCoverPath); err == nil {
+							// 修复：标准化封面URL路径
+							coverURL = normalizeURLPath(path.Join("/", hlsDir, name, format))
+							break
+						}
+						// 再检查原视频目录中的封面文件
 						coverPath := filepath.Join(folder, format)
 						if _, err := os.Stat(coverPath); err == nil {
 							// 修复：标准化封面URL路径
@@ -442,6 +450,14 @@ func getAnimeInfo(folderName string) (AnimeInfo, bool) {
 		coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
 
 		for _, format := range coverFormats {
+			// 先检查HLS目录中的封面文件
+			hlsCoverPath := filepath.Join(hlsDir, folderName, format)
+			if _, err := os.Stat(hlsCoverPath); err == nil {
+				// 修复：标准化封面URL路径
+				coverURL = normalizeURLPath(path.Join("/", hlsDir, folderName, format))
+				break
+			}
+			// 再检查原视频目录中的封面文件
 			coverPath := filepath.Join(animeFolder, format)
 			if _, err := os.Stat(coverPath); err == nil {
 				// 修复：标准化封面URL路径
