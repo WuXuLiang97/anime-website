@@ -4,193 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{.Title}} - 播放页面</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="stylesheet" href="/static/css/player.css" />
     <!-- 引入flv.js库 -->
     <script src="/static/js/flv.min.js"></script>
     <!-- 引入hls.js库，用于HLS播放 -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <style>
-      /* 外层容器用于控制鼠标事件 */
-      .video-container {
-        width: 90%;
-        max-width: 1200px;
-        margin: 20px auto;
-        position: relative;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #000;
-        cursor: pointer;
-        aspect-ratio: 16/9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .video-player {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-      /* 控制栏隐藏样式 */
-      .video-player.hide-controls::-webkit-media-controls {
-        opacity: 0;
-        pointer-events: none;
-      }
-      /* 兼容Firefox */
-      .video-player.hide-controls::-moz-media-controls {
-        opacity: 0;
-        pointer-events: none;
-      }
-      /* 兼容IE/Edge */
-      .video-player.hide-controls::-ms-media-controls {
-        opacity: 0;
-        pointer-events: none;
-      }
-      /* 播放按钮样式 */
-      .play-button {
-        position: absolute;
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        background-color: rgba(0, 0, 0, 0.6);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        z-index: 5;
-      }
-      .play-button:hover {
-        background-color: rgba(0, 0, 0, 0.8);
-        transform: scale(1.1);
-      }
-      .play-button::before {
-        content: '';
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 30px 0 30px 50px;
-        border-color: transparent transparent transparent white;
-        margin-left: 10px;
-      }
-      /* 封面图片样式 */
-      .cover-image {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        z-index: 1;
-      }
-      /* 加载和缓冲提示样式 */
-      .loading-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 10;
-        display: none;
-      }
-      
-      .loading-spinner {
-        width: 50px;
-        height: 50px;
-        border: 5px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: #4285f4;
-        animation: spin 1s ease-in-out infinite;
-      }
-      
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-      
-      #loadingText {
-        color: white;
-        margin-top: 15px;
-        font-size: 16px;
-      }
-      .video-info {
-        width: 90%;
-        max-width: 1200px;
-        margin: 20px auto;
-      }
-      .episode-selector {
-        width: 90%;
-        max-width: 1200px;
-        margin: 15px auto;
-        padding: 10px;
-        background: #f5f5f5;
-        border-radius: 8px;
-      }
-      .episode-selector h3 {
-        margin: 0 0 10px 0;
-        color: #333;
-        font-size: 16px;
-      }
-      .episode-buttons {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .episode-btn {
-        padding: 6px 12px;
-        background: #4285f4;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        font-size: 14px;
-      }
-      .episode-btn:hover {
-        background: #3367d6;
-      }
-      .episode-btn.active {
-        background: #ea4335;
-      }
-      
-      /* 加载和缓冲提示样式 */
-      .loading-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 10;
-        display: none;
-      }
-      
-      .loading-spinner {
-        width: 50px;
-        height: 50px;
-        border: 5px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: #4285f4;
-        animation: spin 1s ease-in-out infinite;
-      }
-      
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-      
-      #loadingText {
-        color: white;
-        margin-top: 15px;
-        font-size: 16px;
-      }
-    </style>
   </head>
   <body>
     <div class="container">
@@ -208,8 +28,6 @@
       <main>
         <!-- 视频容器 -->
         <div class="video-container" id="videoContainer">
-          <!-- 封面图片 -->
-          <img id="coverImage" class="cover-image" src="{{.Cover}}" alt="{{.Title}}" />
           <!-- 播放按钮 -->
           <div id="playButton" class="play-button"></div>
           <!-- 初始不隐藏控制栏 -->
@@ -258,6 +76,9 @@
       </footer>
     </div>
 
+    <!-- 存储初始视频URL的隐藏元素 -->
+    <input type="hidden" id="initialVideoUrl" value="{{.VideoURL}}">
+
     <script>
       // 获取核心元素
       const video = document.getElementById("mainVideo");
@@ -266,6 +87,7 @@
       const episodeButtons = document.querySelectorAll(".episode-btn");
       const loadingOverlay = document.getElementById("loadingOverlay");
       const loadingText = document.getElementById("loadingText");
+      const playButton = document.getElementById('playButton');
       
       // flv.js播放器实例
       let flvPlayer = null;
@@ -398,7 +220,7 @@
               if (data.fatal) {
                 console.error('HLS播放失败，尝试回退到原MP4文件播放');
                 // 构建原MP4文件URL
-                var mp4Url = '{{.VideoURL}}';
+                var mp4Url = document.getElementById('initialVideoUrl').value;
                 // 检查是否是HLS URL
                 if (mp4Url.endsWith('.m3u8')) {
                   // 将HLS URL转换为原MP4 URL
@@ -471,66 +293,70 @@
       const IDLE_TIME = 3000; // 3秒闲置后隐藏控制栏
       let isControlBarClick = false; // 标记是否点击了控制栏
       let progressSaveTimer = null; // 进度保存计时器
-      const PROGRESS_SAVE_INTERVAL = 5000; // 每5秒保存一次进度
+      const PROGRESS_SAVE_INTERVAL = 10000; // 每10秒保存一次进度
 
       // 播放记录存储相关
       const HISTORY_KEY = 'anime_play_history';
       const MAX_HISTORY_ITEMS = 50; // 最多保存50条记录
 
-      // 获取当前视频信息
-      function getCurrentVideoInfo() {
-        console.log('获取当前视频信息开始');
-        console.log('视频currentTime:', video.currentTime);
-        console.log('视频duration:', video.duration);
-        console.log('titleElement.textContent:', titleElement.textContent);
-        console.log('video.src:', video.src);
+      // 获取视频URL的辅助函数
+      function getVideoUrl() {
+        // 首先获取初始视频URL，这是最可靠的
+        let videoUrl = document.getElementById('initialVideoUrl').value;
         
-        const currentTime = video.currentTime;
-        const duration = video.duration;
-        const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
-        
-        // 获取视频URL，确保不为空
-        let videoUrl = video.src;
-        console.log('原始videoUrl:', videoUrl);
-        
-        // 修复：如果video.src为空，尝试从模板变量中获取
+        // 如果初始视频URL为空，尝试从source元素获取
         if (!videoUrl || videoUrl === '') {
-          console.error('video.src为空，尝试从模板变量获取');
-          // 从页面中获取视频URL（通过模板传递的变量）
           const videoElement = document.querySelector('source');
           if (videoElement) {
             videoUrl = videoElement.src;
-            console.log('从source元素获取到videoUrl:', videoUrl);
-          } else {
-            console.error('无法获取视频URL');
           }
+        }
+        
+        // 如果仍然为空，尝试从video元素获取（但跳过blob URL）
+        if (!videoUrl || videoUrl === '') {
+          const videoSrc = video.src;
+          // 跳过blob URL，因为它是临时的
+          if (videoSrc && !videoSrc.startsWith('blob:')) {
+            videoUrl = videoSrc;
+          }
+        }
+        
+        // 确保videoUrl不为空
+        if (!videoUrl || videoUrl === '') {
+          videoUrl = '/static/videos/default.mp4';
         }
         
         // 只保存相对路径，移除完整URL前缀
         if (videoUrl && videoUrl.startsWith(window.location.origin)) {
           videoUrl = videoUrl.substring(window.location.origin.length);
-          console.log('移除origin后videoUrl:', videoUrl);
         }
         
-        // 确保videoUrl不为空
-        if (!videoUrl || videoUrl === '') {
-          console.error('videoUrl仍然为空，使用默认值');
-          videoUrl = '/static/videos/default.mp4';
-        }
-        
+        return videoUrl;
+      }
+
+      // 从视频URL中提取信息的辅助函数
+      function extractVideoInfoFromUrl(videoUrl) {
         // 从视频URL中提取动画标题和视频文件名
         const urlParts = videoUrl.split('/');
-        console.log('视频URL分割结果:', urlParts);
         
         // 确保urlParts长度足够
         let animeTitle = '未知动画';
         let episode = '未知集数';
         
-        if (urlParts.length >= 3) {
-          // 动画标题是URL中的倒数第二个部分
+        // 检测是否是HLS格式的视频URL
+        const isHlsUrl = videoUrl.includes('/hls/') || videoUrl.endsWith('.m3u8');
+        
+        if (isHlsUrl && urlParts.length >= 4) {
+          // 对于HLS格式的视频，倒数第三个部分是动画标题，倒数第二个部分是集数
+          animeTitle = urlParts[urlParts.length - 3];
+          episode = urlParts[urlParts.length - 2];
+        } else if (urlParts.length >= 3) {
+          // 对于普通视频，动画标题是URL中的倒数第二个部分，视频文件名是最后一个部分
           animeTitle = urlParts[urlParts.length - 2];
-          // 视频文件名是URL中的最后一个部分
           episode = urlParts[urlParts.length - 1];
+          
+          // 移除文件扩展名
+          episode = episode.replace(/\.[^/.]+$/, "");
         } else if (urlParts.length >= 2) {
           // 如果URL格式不符合预期，使用最后一个部分作为动画标题
           animeTitle = urlParts[urlParts.length - 2];
@@ -549,6 +375,27 @@
           console.error('URL解码失败:', e);
         }
         
+        return { animeTitle, episode };
+      }
+
+      // 获取当前视频信息
+      function getCurrentVideoInfo() {
+        console.log('获取当前视频信息开始');
+        console.log('视频currentTime:', video.currentTime);
+        console.log('视频duration:', video.duration);
+        console.log('titleElement.textContent:', titleElement.textContent);
+        console.log('video.src:', video.src);
+        
+        const currentTime = video.currentTime;
+        const duration = video.duration;
+        const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+        
+        // 使用辅助函数获取视频URL
+        const videoUrl = getVideoUrl();
+        console.log('获取的videoUrl:', videoUrl);
+        
+        // 使用辅助函数从URL中提取信息
+        const { animeTitle, episode } = extractVideoInfoFromUrl(videoUrl);
         console.log('提取的动画标题:', animeTitle);
         console.log('提取的视频文件名:', episode);
         
@@ -566,45 +413,63 @@
         return result;
       }
 
-      // 保存播放记录到LocalStorage
+      // 保存播放记录到后端API
       function savePlayHistory() {
         console.log('开始保存播放记录');
         const videoInfo = getCurrentVideoInfo();
         console.log('获取到的视频信息:', videoInfo);
         
-        // 检查LocalStorage是否可用
-        if (typeof Storage !== "undefined") {
-          console.log('LocalStorage可用');
-          
-          // 检查当前视频是否已经有记录
-          let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-          console.log('当前播放记录:', history);
-          
-          // 修改：每个动画只保留一条最新记录
-          // 1. 移除该动画的所有旧记录
-          const updatedHistory = history.filter(item => item.animeTitle !== videoInfo.animeTitle);
-          console.log('移除旧记录后:', updatedHistory);
-          
-          // 2. 添加新记录到开头
-          updatedHistory.unshift(videoInfo);
-          console.log('添加新记录后:', updatedHistory);
-          
-          // 3. 限制记录数量
-          if (updatedHistory.length > MAX_HISTORY_ITEMS) {
-            updatedHistory.pop();
-            console.log('限制记录数量后:', updatedHistory);
-          }
-          
-          // 保存到LocalStorage
-          localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
-          console.log('播放记录已保存到LocalStorage');
-          
-          // 验证保存结果
-          const savedHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-          console.log('LocalStorage中实际保存的记录:', savedHistory);
-        } else {
-          console.error('LocalStorage不可用，无法保存播放记录');
+        // 只有当视频URL有效且duration大于0时才保存播放记录
+        if (!videoInfo.videoUrl || videoInfo.duration <= 0) {
+          console.log('视频URL无效或duration为0，跳过保存播放记录');
+          return;
         }
+        
+        // 准备API请求数据
+        const requestData = {
+          videoId: videoInfo.videoUrl, // 使用视频URL作为唯一标识
+          animeTitle: videoInfo.animeTitle,
+          episode: videoInfo.episode,
+          videoUrl: videoInfo.videoUrl,
+          currentTime: videoInfo.currentTime,
+          duration: videoInfo.duration,
+          progress: videoInfo.progress
+        };
+        
+        console.log('准备发送的API请求数据:', requestData);
+        
+        // 发送API请求
+        fetch('/api/play-history/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('API请求失败: ' + response.status);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('播放记录保存成功:', data);
+        })
+        .catch(error => {
+          console.error('保存播放记录失败:', error);
+          // API调用失败时，尝试使用localStorage作为备份
+          console.log('API调用失败，尝试使用localStorage作为备份');
+          if (typeof Storage !== "undefined") {
+            let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            const updatedHistory = history.filter(item => item.animeTitle !== videoInfo.animeTitle);
+            updatedHistory.unshift(videoInfo);
+            if (updatedHistory.length > MAX_HISTORY_ITEMS) {
+              updatedHistory.pop();
+            }
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+            console.log('播放记录已备份到LocalStorage');
+          }
+        });
       }
 
       // 定期保存播放进度
@@ -681,6 +546,11 @@
       // 监听视频播放/暂停事件，同步控制栏状态
       video.addEventListener("play", () => {
         console.log('视频开始播放，启动进度保存计时器');
+        // 隐藏播放按钮
+        if (playButton) {
+          playButton.style.display = 'none';
+        }
+        hideLoading();
         showControls();
         resetIdleTimer(); // 播放时启动计时器
         startProgressSaveTimer(); // 启动进度保存计时器
@@ -707,14 +577,6 @@
         savePlayHistory();
       });
 
-      // 每30秒自动保存一次播放记录，确保即使视频一直播放也能保存进度
-      setInterval(() => {
-        if (!video.paused && !video.ended) {
-          console.log('30秒自动保存播放记录');
-          savePlayHistory();
-        }
-      }, 30000);
-
       // 监听控制栏点击（区分原生控制栏操作）
       video.addEventListener("click", (e) => {
         console.log('视频被点击');
@@ -728,10 +590,18 @@
       // 初始化页面视频
       function initPageVideo() {
         console.log('初始化页面视频');
-        // 获取初始视频URL
-        const initialVideoUrl = '{{.VideoURL}}';
+        // 首先检查URL中的video参数
+        const urlParams = new URLSearchParams(window.location.search);
+        let videoUrl = urlParams.get('video');
+        
+        // 如果URL中没有video参数，使用模板变量中的初始视频URL
+        if (!videoUrl || videoUrl === '') {
+          videoUrl = '{{.VideoURL}}';
+        }
+        
+        console.log('使用的视频URL:', videoUrl);
         // 初始化播放器
-        initPlayer(initialVideoUrl);
+        initPlayer(videoUrl);
       }
       
       // 页面加载完成后初始化视频
@@ -763,47 +633,16 @@
       });
 
       // 播放按钮点击事件
-      const playButton = document.getElementById('playButton');
-      const coverImage = document.getElementById('coverImage');
-
       if (playButton) {
         playButton.addEventListener('click', () => {
           console.log('播放按钮被点击');
           if (video.paused) {
             video.play();
-            // 隐藏封面和播放按钮
-            if (coverImage) {
-              coverImage.style.display = 'none';
-            }
+            // 隐藏播放按钮
             playButton.style.display = 'none';
           }
         });
       }
-
-      // 视频播放事件
-      video.addEventListener('play', () => {
-        console.log('视频开始播放');
-        // 隐藏封面和播放按钮
-        if (coverImage) {
-          coverImage.style.display = 'none';
-        }
-        if (playButton) {
-          playButton.style.display = 'none';
-        }
-        hideLoading();
-        showControls();
-        resetIdleTimer();
-        startProgressSaveTimer();
-      });
-
-      // 视频暂停事件
-      video.addEventListener('pause', () => {
-        console.log('视频暂停');
-        showControls();
-        if (idleTimer) clearTimeout(idleTimer);
-        stopProgressSaveTimer();
-        savePlayHistory();
-      });
 
       // 点击视频容器（区分控制栏和画面）
       videoContainer.addEventListener("click", (e) => {
@@ -818,10 +657,7 @@
         if (video.paused) {
           console.log('点击视频画面，开始播放');
           video.play();
-          // 隐藏封面和播放按钮
-          if (coverImage) {
-            coverImage.style.display = 'none';
-          }
+          // 隐藏播放按钮
           if (playButton) {
             playButton.style.display = 'none';
           }

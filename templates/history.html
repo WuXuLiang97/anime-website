@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>播放记录 - 动画视频网站</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         .history-container {
@@ -260,92 +261,187 @@
 
         // 渲染播放记录
         function renderHistory() {
-            const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
             const historyList = document.getElementById('historyList');
             const emptyHistory = document.getElementById('emptyHistory');
             const recordCount = document.getElementById('recordCount');
             
-            recordCount.textContent = history.length;
+            // 显示加载状态
+            historyList.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>加载播放记录中...</p></div>';
             
-            if (history.length === 0) {
-                emptyHistory.style.display = 'block';
-                historyList.innerHTML = '';
-                return;
-            }
-            
-            emptyHistory.style.display = 'none';
-            
-            // 按动画分组，每个动画只保留一条最新记录
-            const groupedHistory = {};
-            history.forEach(item => {
-                // 只保留videoUrl不为空的记录
-                if (!item.videoUrl) return;
-                
-                // 如果是该动画的第一条记录，或者比现有记录更新，则更新
-                if (!groupedHistory[item.animeTitle] || 
-                    new Date(item.lastPlayed) > new Date(groupedHistory[item.animeTitle].lastPlayed)) {
-                    groupedHistory[item.animeTitle] = item;
-                }
-            });
-            
-            // 渲染分组后的记录
-            let html = '';
-            Object.keys(groupedHistory).forEach(animeTitle => {
-                const item = groupedHistory[animeTitle];
-                const progress = Math.round(item.progress);
-                const currentTime = formatSeconds(item.currentTime);
-                const duration = formatSeconds(item.duration);
-                const lastPlayed = formatTime(item.lastPlayed);
-                
-                // 对动画标题和集数进行URL解码
-                let decodedAnimeTitle = animeTitle;
-                let decodedEpisode = item.episode;
-                try {
-                    decodedAnimeTitle = decodeURIComponent(animeTitle);
-                    decodedEpisode = decodeURIComponent(item.episode);
-                } catch (e) {
-                    console.error('URL解码失败:', e);
-                }
-                
-                html += `<h2 class="group-title">${decodedAnimeTitle}</h2>`;
-                
-                html += `
-                <div class="history-item">
-                    <div class="history-item-header">
-                        <div>
-                            <h3 class="anime-title">${decodedAnimeTitle}</h3>
-                            <div class="episode-info">${decodedEpisode}</div>
-                        </div>
-                        <div class="last-played">${lastPlayed}</div>
-                    </div>
+            // 从后端API获取播放记录
+            fetch('/api/play-history/all')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('API请求失败: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('获取到的播放记录:', data);
+                    const history = data.histories || [];
                     
-                    <div class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
-                        </div>
-                        <div class="progress-text">
-                            <span>已观看 ${progress}%</span>
-                            <span>${currentTime} / ${duration}</span>
-                        </div>
-                    </div>
+                    recordCount.textContent = history.length;
                     
-                    <div class="history-item-footer">
-                        <button class="play-button" 
-                                data-videourl="${item.videoUrl}"
-                                data-title="${decodedAnimeTitle}-${decodedEpisode}"
-                                data-currenttime="${item.currentTime}">
-                            继续播放
-                        </button>
-                        <button class="btn btn-danger" 
-                                data-videourl="${item.videoUrl}" style="padding: 6px 12px; font-size: 12px;">
-                            删除记录
-                        </button>
-                    </div>
-                </div>
-                `;
-            });
-            
-            historyList.innerHTML = html;
+                    if (history.length === 0) {
+                        emptyHistory.style.display = 'block';
+                        historyList.innerHTML = '';
+                        return;
+                    }
+                    
+                    emptyHistory.style.display = 'none';
+                    
+                    // 按动画分组，每个动画只保留一条最新记录
+                    const groupedHistory = {};
+                    history.forEach(item => {
+                        // 只保留videoUrl不为空的记录
+                        if (!item.videoUrl) return;
+                        
+                        // 如果是该动画的第一条记录，或者比现有记录更新，则更新
+                        if (!groupedHistory[item.animeTitle] || 
+                            new Date(item.lastPlayed) > new Date(groupedHistory[item.animeTitle].lastPlayed)) {
+                            groupedHistory[item.animeTitle] = item;
+                        }
+                    });
+                    
+                    // 渲染分组后的记录
+                    let html = '';
+                    Object.keys(groupedHistory).forEach(animeTitle => {
+                        const item = groupedHistory[animeTitle];
+                        const progress = Math.round(item.progress);
+                        const currentTime = formatSeconds(item.currentTime);
+                        const duration = formatSeconds(item.duration);
+                        const lastPlayed = formatTime(item.lastPlayed);
+                        
+                        // 对动画标题和集数进行URL解码
+                        let decodedAnimeTitle = animeTitle;
+                        let decodedEpisode = item.episode;
+                        try {
+                            decodedAnimeTitle = decodeURIComponent(animeTitle);
+                            decodedEpisode = decodeURIComponent(item.episode);
+                        } catch (e) {
+                            console.error('URL解码失败:', e);
+                        }
+                        
+                        html += `<h2 class="group-title">${decodedAnimeTitle}</h2>`;
+                        
+                        html += `
+                        <div class="history-item">
+                            <div class="history-item-header">
+                                <div>
+                                    <h3 class="anime-title">${decodedAnimeTitle}</h3>
+                                    <div class="episode-info">${decodedEpisode}</div>
+                                </div>
+                                <div class="last-played">${lastPlayed}</div>
+                            </div>
+                            
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${progress}%"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span>已观看 ${progress}%</span>
+                                    <span>${currentTime} / ${duration}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="history-item-footer">
+                                <button class="play-button" 
+                                        data-videourl="${item.videoUrl}"
+                                        data-title="${decodedAnimeTitle}-${decodedEpisode}"
+                                        data-currenttime="${item.currentTime}">
+                                    继续播放
+                                </button>
+                                <button class="btn btn-danger" 
+                                        data-videourl="${item.videoUrl}" style="padding: 6px 12px; font-size: 12px;">
+                                    删除记录
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                    });
+                    
+                    historyList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('获取播放记录失败:', error);
+                    // API调用失败时，尝试使用localStorage作为备份
+                    console.log('API调用失败，尝试使用localStorage作为备份');
+                    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+                    recordCount.textContent = history.length;
+                    
+                    if (history.length === 0) {
+                        emptyHistory.style.display = 'block';
+                        historyList.innerHTML = '';
+                        return;
+                    }
+                    
+                    emptyHistory.style.display = 'none';
+                    
+                    // 按动画分组，每个动画只保留一条最新记录
+                    const groupedHistory = {};
+                    history.forEach(item => {
+                        if (!item.videoUrl) return;
+                        if (!groupedHistory[item.animeTitle] || 
+                            new Date(item.lastPlayed) > new Date(groupedHistory[item.animeTitle].lastPlayed)) {
+                            groupedHistory[item.animeTitle] = item;
+                        }
+                    });
+                    
+                    // 渲染分组后的记录
+                    let html = '';
+                    Object.keys(groupedHistory).forEach(animeTitle => {
+                        const item = groupedHistory[animeTitle];
+                        const progress = Math.round(item.progress);
+                        const currentTime = formatSeconds(item.currentTime);
+                        const duration = formatSeconds(item.duration);
+                        const lastPlayed = formatTime(item.lastPlayed);
+                        
+                        let decodedAnimeTitle = animeTitle;
+                        let decodedEpisode = item.episode;
+                        try {
+                            decodedAnimeTitle = decodeURIComponent(animeTitle);
+                            decodedEpisode = decodeURIComponent(item.episode);
+                        } catch (e) {
+                            console.error('URL解码失败:', e);
+                        }
+                        
+                        html += `<h2 class="group-title">${decodedAnimeTitle}</h2>`;
+                        html += `
+                        <div class="history-item">
+                            <div class="history-item-header">
+                                <div>
+                                    <h3 class="anime-title">${decodedAnimeTitle}</h3>
+                                    <div class="episode-info">${decodedEpisode}</div>
+                                </div>
+                                <div class="last-played">${lastPlayed}</div>
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${progress}%"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span>已观看 ${progress}%</span>
+                                    <span>${currentTime} / ${duration}</span>
+                                </div>
+                            </div>
+                            <div class="history-item-footer">
+                                <button class="play-button" 
+                                        data-videourl="${item.videoUrl}"
+                                        data-title="${decodedAnimeTitle}-${decodedEpisode}"
+                                        data-currenttime="${item.currentTime}">
+                                    继续播放
+                                </button>
+                                <button class="btn btn-danger" 
+                                        data-videourl="${item.videoUrl}" style="padding: 6px 12px; font-size: 12px;">
+                                    删除记录
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                    });
+                    
+                    historyList.innerHTML = html;
+                });
         }
 
         // 继续播放
@@ -358,18 +454,58 @@
         // 删除单条记录
         function deleteRecord(videoUrl) {
             if (confirm('确定要删除这条播放记录吗？')) {
-                let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-                history = history.filter(item => item.videoUrl !== videoUrl);
-                localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-                renderHistory();
+                // 发送删除请求到后端API
+                fetch(`/api/play-history/delete?videoId=${encodeURIComponent(videoUrl)}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('API请求失败: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('删除播放记录成功:', data);
+                    // 重新获取并渲染播放记录
+                    renderHistory();
+                })
+                .catch(error => {
+                    console.error('删除播放记录失败:', error);
+                    // API调用失败时，尝试使用localStorage作为备份
+                    console.log('API调用失败，尝试使用localStorage作为备份');
+                    let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+                    history = history.filter(item => item.videoUrl !== videoUrl);
+                    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+                    renderHistory();
+                });
             }
         }
 
         // 清除所有记录
         function clearAllHistory() {
             if (confirm('确定要清除所有播放记录吗？此操作不可恢复！')) {
-                localStorage.removeItem(HISTORY_KEY);
-                renderHistory();
+                // 发送清除请求到后端API
+                fetch('/api/play-history/clear', {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('API请求失败: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('清除所有播放记录成功:', data);
+                    // 重新获取并渲染播放记录
+                    renderHistory();
+                })
+                .catch(error => {
+                    console.error('清除所有播放记录失败:', error);
+                    // API调用失败时，尝试使用localStorage作为备份
+                    console.log('API调用失败，尝试使用localStorage作为备份');
+                    localStorage.removeItem(HISTORY_KEY);
+                    renderHistory();
+                });
             }
         }
 

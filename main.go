@@ -40,6 +40,29 @@ type LogConfig struct {
 	Level string `json:"level"`
 }
 
+// 播放记录结构体
+type PlayHistory struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	VideoID       string    `gorm:"size:255;index" json:"videoId"` // 视频唯一标识（如视频文件路径）
+	AnimeTitle    string    `gorm:"size:255" json:"animeTitle"`    // 动画标题
+	Episode       string    `gorm:"size:255" json:"episode"`       // 集数名称
+	VideoURL      string    `gorm:"size:500" json:"videoUrl"`      // 视频URL
+	CurrentTime   float64   `json:"currentTime"`                   // 全局播放位置（秒）
+	Duration      float64   `json:"duration"`                      // 视频总时长（秒）
+	Progress      float64   `json:"progress"`                      // 播放进度百分比
+	LastPlayed    time.Time `json:"lastPlayed"`                    // 最后播放时间
+	SegmentID     string    `gorm:"size:100" json:"segmentId"`     // 当前HLS切片ID（可选，用于调试）
+	SegmentOffset float64   `json:"segmentOffset"`                 // 在当前切片内的偏移量（秒）
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+// 内存存储（仅在本地模式或数据库不可用时使用）
+var (
+	historyMap = make(map[string]PlayHistory)
+	historyMu  sync.Mutex
+)
+
 // 动画信息结构体
 type AnimeInfo struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
@@ -162,7 +185,7 @@ func initDB() {
 	}
 
 	// 自动迁移表结构
-	err = db.AutoMigrate(&AnimeInfo{})
+	err = db.AutoMigrate(&AnimeInfo{}, &PlayHistory{})
 	if err != nil {
 		logger.Printf("错误: 数据库迁移失败: %v\n", err)
 		localMode = true
@@ -465,13 +488,13 @@ func getAnimeVideos(folderName string) []VideoFile {
 				if !file.IsDir() && isVideoFile(file.Name()) {
 					// 构建视频URL路径
 					videoPath := normalizeURLPath(path.Join("/", videosDir, folderName, file.Name()))
-					
+
 					// 检查是否有HLS切片
 					hlsPath := getHLSURL(videoPath)
 					if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
 						videoPath = hlsPath
 					}
-					
+
 					// 避免重复添加
 					if !addedVideos[videoPath] {
 						videos = append(videos, VideoFile{
@@ -497,10 +520,10 @@ func getAnimeVideos(folderName string) []VideoFile {
 					if _, err := os.Stat(playlistPath); err == nil {
 						// 构建HLS URL路径
 						hlsURL := normalizeURLPath(path.Join("/", hlsDir, folderName, entry.Name(), "playlist.m3u8"))
-						
+
 						// HLS视频使用实际目录名（不含扩展名），更符合实际播放格式
 						hlsFileName := entry.Name()
-						
+
 						// 避免重复添加
 						if !addedVideos[hlsURL] {
 							videos = append(videos, VideoFile{
@@ -553,7 +576,7 @@ func getHLSURL(videoPath string) string {
 func generateHLS(videoPath string) error {
 	// 构建HLS目录路径
 	hlsDirPath := getHLSDir(videoPath)
-	
+
 	// 确保HLS目录存在
 	err := os.MkdirAll(hlsDirPath, 0755)
 	if err != nil {
@@ -573,8 +596,8 @@ func generateHLS(videoPath string) error {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-i", videoFilePath,
-		"-c:v", "copy",  // 直接复制视频流，不转码
-		"-c:a", "copy",  // 直接复制音频流，不转码
+		"-c:v", "copy", // 直接复制视频流，不转码
+		"-c:a", "copy", // 直接复制音频流，不转码
 		"-hls_time", "10",
 		"-hls_list_size", "0",
 		"-hls_segment_filename", segmentPath,
@@ -605,7 +628,7 @@ func generateHLS(videoPath string) error {
 func generateHLSHighQuality(videoPath string) error {
 	// 构建HLS目录路径
 	hlsDirPath := getHLSDir(videoPath)
-	
+
 	// 确保HLS目录存在
 	err := os.MkdirAll(hlsDirPath, 0755)
 	if err != nil {
@@ -623,10 +646,10 @@ func generateHLSHighQuality(videoPath string) error {
 	// 构建FFmpeg命令（使用GPU加速，无转码）
 	cmd := exec.Command(
 		"ffmpeg",
-		"-hwaccel", "cuda",  // 使用GPU硬件加速
+		"-hwaccel", "cuda", // 使用GPU硬件加速
 		"-i", videoFilePath,
-		"-c:v", "copy",      // 直接复制视频流，不转码
-		"-c:a", "copy",      // 直接复制音频流，不转码
+		"-c:v", "copy", // 直接复制视频流，不转码
+		"-c:a", "copy", // 直接复制音频流，不转码
 		"-hls_time", "10",
 		"-hls_list_size", "0",
 		"-hls_segment_filename", segmentPath,
@@ -643,7 +666,7 @@ func generateHLSHighQuality(videoPath string) error {
 
 	// 删除原始.mp4文件
 	// 使用已定义的videoFilePath变量，不需要重新定义
-	
+
 	if strings.HasSuffix(strings.ToLower(videoFilePath), ".mp4") {
 		err = os.Remove(videoFilePath)
 		if err != nil {
@@ -692,11 +715,11 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 
 		// 修复：标准化视频路径
 		normalizedPath := normalizeURLPath(videoPath)
-		
+
 		// 检查HLS切片是否已存在
 		hlsPath := getHLSURL(normalizedPath)
 		hlsFilePath := strings.TrimPrefix(hlsPath, "/")
-		
+
 		if _, err := os.Stat(hlsFilePath); err == nil {
 			// HLS切片已存在，跳过处理
 			skipped++
@@ -860,7 +883,7 @@ func playHandler(c *gin.Context) {
 		hlsPath := getHLSURL(videoURL)
 		hlsFilePath := strings.TrimPrefix(hlsPath, "/")
 		hlsFilePath = filepath.FromSlash(hlsFilePath)
-		
+
 		if _, err := os.Stat(hlsFilePath); os.IsNotExist(err) {
 			// 生成HLS切片
 			logger.Printf("生成HLS切片: %s\n", videoURL)
@@ -929,7 +952,7 @@ func videoListHandler(c *gin.Context) {
 				if !file.IsDir() && isVideoFile(file.Name()) {
 					// 构建视频URL路径
 					videoPath := normalizeURLPath(path.Join("/", videosDir, entry.Name(), file.Name()))
-					
+
 					// 检查是否有对应的HLS切片
 					hlsPath := getHLSURL(videoPath)
 					hlsFilePath := strings.TrimPrefix(hlsPath, "/")
@@ -937,7 +960,7 @@ func videoListHandler(c *gin.Context) {
 						// 如果HLS切片存在，使用HLS路径
 						videoPath = hlsPath
 					}
-					
+
 					// 避免重复添加
 					if !addedVideos[videoPath] {
 						videos = append(videos, videoPath)
@@ -958,7 +981,7 @@ func videoListHandler(c *gin.Context) {
 				if _, err := os.Stat(playlistPath); err == nil {
 					// 构建HLS URL路径
 					hlsURL := normalizeURLPath(path.Join("/", hlsDir, entry.Name(), "playlist.m3u8"))
-					
+
 					// 避免重复添加
 					if !addedVideos[hlsURL] {
 						videos = append(videos, hlsURL)
@@ -1012,9 +1035,9 @@ func batchHLSHandler(c *gin.Context) {
 	// 存储处理上下文
 	batchProcessingMutex.Lock()
 	batchProcessingContexts[processID] = map[string]interface{}{
-		"stopChan": stopChan,
+		"stopChan":     stopChan,
 		"progressChan": progressChan,
-		"startTime": time.Now(),
+		"startTime":    time.Now(),
 	}
 	batchProcessingMutex.Unlock()
 
@@ -1028,12 +1051,12 @@ func batchHLSHandler(c *gin.Context) {
 
 		// 发送完成消息
 		progressChan <- map[string]interface{}{
-			"type":     "complete",
-			"total":    total,
-			"success":  success,
-			"failed":   failed,
-			"skipped":  skipped,
-			"errors":   errors,
+			"type":      "complete",
+			"total":     total,
+			"success":   success,
+			"failed":    failed,
+			"skipped":   skipped,
+			"errors":    errors,
 			"timestamp": time.Now().Format(time.RFC3339),
 		}
 
@@ -1089,6 +1112,296 @@ func stopBatchHLSHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "处理已停止"})
 }
 
+// 保存播放记录API
+func savePlayHistoryHandler(c *gin.Context) {
+	var req struct {
+		VideoID       string  `json:"videoId"`       // 视频唯一标识
+		AnimeTitle    string  `json:"animeTitle"`    // 动画标题
+		Episode       string  `json:"episode"`       // 集数名称
+		VideoURL      string  `json:"videoUrl"`      // 视频URL
+		CurrentTime   float64 `json:"currentTime"`   // 全局播放位置（秒）
+		Duration      float64 `json:"duration"`      // 视频总时长（秒）
+		Progress      float64 `json:"progress"`      // 播放进度百分比
+		SegmentID     string  `json:"segmentId"`     // 当前HLS切片ID（可选）
+		SegmentOffset float64 `json:"segmentOffset"` // 在当前切片内的偏移量（秒）
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Printf("错误: 保存播放记录参数错误: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	// 确保VideoID不为空
+	if req.VideoID == "" {
+		logger.Println("错误: VideoID为空")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "VideoID不能为空"})
+		return
+	}
+
+	// 计算进度百分比
+	if req.Duration > 0 {
+		req.Progress = (req.CurrentTime / req.Duration) * 100
+	} else {
+		req.Progress = 0
+	}
+
+	// 确保CurrentTime不超过Duration
+	if req.CurrentTime > req.Duration && req.Duration > 0 {
+		req.CurrentTime = req.Duration
+		req.Progress = 100
+	}
+
+	// 保存到数据库
+	if !localMode && db != nil {
+		var history PlayHistory
+		result := db.Where("video_id = ?", req.VideoID).First(&history)
+
+		if result.Error == nil {
+			// 更新现有记录
+			history.AnimeTitle = req.AnimeTitle
+			history.Episode = req.Episode
+			history.VideoURL = req.VideoURL
+			history.CurrentTime = req.CurrentTime
+			history.Duration = req.Duration
+			history.Progress = req.Progress
+			history.LastPlayed = time.Now()
+			history.SegmentID = req.SegmentID
+			history.SegmentOffset = req.SegmentOffset
+			history.UpdatedAt = time.Now()
+
+			db.Save(&history)
+		} else if result.Error == gorm.ErrRecordNotFound {
+			// 创建新记录
+			history = PlayHistory{
+				VideoID:       req.VideoID,
+				AnimeTitle:    req.AnimeTitle,
+				Episode:       req.Episode,
+				VideoURL:      req.VideoURL,
+				CurrentTime:   req.CurrentTime,
+				Duration:      req.Duration,
+				Progress:      req.Progress,
+				LastPlayed:    time.Now(),
+				SegmentID:     req.SegmentID,
+				SegmentOffset: req.SegmentOffset,
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+			}
+			db.Create(&history)
+		} else {
+			logger.Printf("错误: 查询播放记录失败: %v\n", result.Error)
+		}
+	} else {
+		// 使用内存存储（本地模式）
+		historyMu.Lock()
+		defer historyMu.Unlock()
+
+		existingHistory, exists := historyMap[req.VideoID]
+		if exists {
+			// 更新现有记录
+			existingHistory.AnimeTitle = req.AnimeTitle
+			existingHistory.Episode = req.Episode
+			existingHistory.VideoURL = req.VideoURL
+			existingHistory.CurrentTime = req.CurrentTime
+			existingHistory.Duration = req.Duration
+			existingHistory.Progress = req.Progress
+			existingHistory.LastPlayed = time.Now()
+			existingHistory.SegmentID = req.SegmentID
+			existingHistory.SegmentOffset = req.SegmentOffset
+			existingHistory.UpdatedAt = time.Now()
+			historyMap[req.VideoID] = existingHistory
+		} else {
+			// 创建新记录
+			historyMap[req.VideoID] = PlayHistory{
+				VideoID:       req.VideoID,
+				AnimeTitle:    req.AnimeTitle,
+				Episode:       req.Episode,
+				VideoURL:      req.VideoURL,
+				CurrentTime:   req.CurrentTime,
+				Duration:      req.Duration,
+				Progress:      req.Progress,
+				LastPlayed:    time.Now(),
+				SegmentID:     req.SegmentID,
+				SegmentOffset: req.SegmentOffset,
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+			}
+		}
+	}
+
+	logger.Printf("播放记录已保存: VideoID=%s, CurrentTime=%.2f, Progress=%.2f%%\n",
+		req.VideoID, req.CurrentTime, req.Progress)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":      "success",
+		"currentTime": req.CurrentTime,
+		"progress":    req.Progress,
+	})
+}
+
+// 获取播放记录API
+func getPlayHistoryHandler(c *gin.Context) {
+	videoId := c.Query("videoId")
+	if videoId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少videoId"})
+		return
+	}
+
+	var history PlayHistory
+
+	if !localMode && db != nil {
+		result := db.Where("video_id = ?", videoId).First(&history)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 无记录则返回默认值
+				c.JSON(http.StatusOK, gin.H{
+					"videoId":     videoId,
+					"currentTime": 0,
+					"duration":    0,
+					"progress":    0,
+					"hasRecord":   false,
+				})
+				return
+			}
+			logger.Printf("错误: 查询播放记录失败: %v\n", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
+			return
+		}
+	} else {
+		// 使用内存存储（本地模式）
+		historyMu.Lock()
+		existingHistory, exists := historyMap[videoId]
+		historyMu.Unlock()
+
+		if !exists {
+			c.JSON(http.StatusOK, gin.H{
+				"videoId":     videoId,
+				"currentTime": 0,
+				"duration":    0,
+				"progress":    0,
+				"hasRecord":   false,
+			})
+			return
+		}
+		history = existingHistory
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            history.ID,
+		"videoId":       history.VideoID,
+		"animeTitle":    history.AnimeTitle,
+		"episode":       history.Episode,
+		"videoUrl":      history.VideoURL,
+		"currentTime":   history.CurrentTime,
+		"duration":      history.Duration,
+		"progress":      history.Progress,
+		"lastPlayed":    history.LastPlayed.Format("2006-01-02 15:04:05"),
+		"segmentId":     history.SegmentID,
+		"segmentOffset": history.SegmentOffset,
+		"hasRecord":     true,
+	})
+}
+
+// 获取所有播放记录API
+func getAllPlayHistoryHandler(c *gin.Context) {
+	var histories []PlayHistory
+
+	if !localMode && db != nil {
+		// 按最后播放时间降序排列
+		result := db.Order("last_played DESC").Find(&histories)
+		if result.Error != nil {
+			logger.Printf("错误: 获取所有播放记录失败: %v\n", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
+			return
+		}
+	} else {
+		// 使用内存存储（本地模式）
+		historyMu.Lock()
+		defer historyMu.Unlock()
+
+		for _, history := range historyMap {
+			histories = append(histories, history)
+		}
+	}
+
+	// 转换为响应格式
+	type HistoryResponse struct {
+		ID          uint    `json:"id"`
+		VideoID     string  `json:"videoId"`
+		AnimeTitle  string  `json:"animeTitle"`
+		Episode     string  `json:"episode"`
+		VideoURL    string  `json:"videoUrl"`
+		CurrentTime float64 `json:"currentTime"`
+		Duration    float64 `json:"duration"`
+		Progress    float64 `json:"progress"`
+		LastPlayed  string  `json:"lastPlayed"`
+	}
+
+	responses := make([]HistoryResponse, len(histories))
+	for i, h := range histories {
+		responses[i] = HistoryResponse{
+			ID:          h.ID,
+			VideoID:     h.VideoID,
+			AnimeTitle:  h.AnimeTitle,
+			Episode:     h.Episode,
+			VideoURL:    h.VideoURL,
+			CurrentTime: h.CurrentTime,
+			Duration:    h.Duration,
+			Progress:    h.Progress,
+			LastPlayed:  h.LastPlayed.Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"histories": responses,
+		"total":     len(responses),
+	})
+}
+
+// 删除单个播放记录API
+func deletePlayHistoryHandler(c *gin.Context) {
+	videoId := c.Query("videoId")
+	if videoId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少videoId"})
+		return
+	}
+
+	if !localMode && db != nil {
+		result := db.Where("video_id = ?", videoId).Delete(&PlayHistory{})
+		if result.Error != nil {
+			logger.Printf("错误: 删除播放记录失败: %v\n", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+			return
+		}
+	} else {
+		// 使用内存存储（本地模式）
+		historyMu.Lock()
+		defer historyMu.Unlock()
+		delete(historyMap, videoId)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
+// 清除所有播放记录API
+func clearAllPlayHistoryHandler(c *gin.Context) {
+	if !localMode && db != nil {
+		result := db.Exec("DELETE FROM play_histories")
+		if result.Error != nil {
+			logger.Printf("错误: 清除所有播放记录失败: %v\n", result.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除失败"})
+			return
+		}
+	} else {
+		// 使用内存存储（本地模式）
+		historyMu.Lock()
+		defer historyMu.Unlock()
+		historyMap = make(map[string]PlayHistory)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
 // 主函数
 func main() {
 	// 初始化日志
@@ -1139,6 +1452,12 @@ func main() {
 	r.GET("/api/videos", videoListHandler)
 	r.POST("/api/batch-hls", batchHLSHandler)
 	r.POST("/api/batch-hls/stop", stopBatchHLSHandler)
+	// 播放记录相关API
+	r.POST("/api/play-history/save", savePlayHistoryHandler)
+	r.GET("/api/play-history/get", getPlayHistoryHandler)
+	r.GET("/api/play-history/all", getAllPlayHistoryHandler)
+	r.DELETE("/api/play-history/delete", deletePlayHistoryHandler)
+	r.DELETE("/api/play-history/clear", clearAllPlayHistoryHandler)
 
 	// 启动服务器
 	port := config.Server.Port
