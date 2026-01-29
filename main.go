@@ -588,6 +588,56 @@ func getHLSURL(videoPath string) string {
 	return hlsURL
 }
 
+// 移动封面文件到HLS目录
+func moveCoverToHLS(videoPath string) {
+	// 修复：先标准化URL路径
+	normalizedPath := normalizeURLPath(videoPath)
+	// 移除URL前缀 /static/videos/
+	relativePath := strings.TrimPrefix(normalizedPath, "/static/videos/")
+	// 提取动画标题（从路径中提取）
+	pathParts := strings.Split(relativePath, "/")
+	if len(pathParts) < 1 {
+		logger.Printf("警告: 无法从视频路径中提取动画标题: %s\n", videoPath)
+		return
+	}
+
+	animeTitle := pathParts[0]
+
+	// 构建视频目录路径
+	videoDir := filepath.Join(videosDir, animeTitle)
+
+	// 检查视频目录是否存在
+	if _, err := os.Stat(videoDir); os.IsNotExist(err) {
+		logger.Printf("警告: 视频目录 %s 不存在，无法移动封面文件\n", videoDir)
+		return
+	}
+
+	// 构建HLS目录路径
+	hlsDirPath := filepath.Join(hlsDir, animeTitle)
+
+	// 确保HLS目录存在
+	if err := os.MkdirAll(hlsDirPath, 0755); err != nil {
+		logger.Printf("警告: 创建HLS目录失败: %v\n", err)
+		return
+	}
+
+	// 检查封面文件
+	coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
+	for _, format := range coverFormats {
+		coverPath := filepath.Join(videoDir, format)
+		if _, err := os.Stat(coverPath); err == nil {
+			// 封面文件存在，移动到HLS目录
+			targetPath := filepath.Join(hlsDirPath, format)
+			if err := os.Rename(coverPath, targetPath); err != nil {
+				logger.Printf("警告: 移动封面文件失败: %v\n", err)
+			} else {
+				logger.Printf("成功: 封面文件已移动到HLS目录: %s\n", targetPath)
+			}
+			break
+		}
+	}
+}
+
 // 生成HLS切片（无转码，仅切片）
 func generateHLS(videoPath string) error {
 	// 构建HLS目录路径
@@ -791,6 +841,9 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 			} else {
 				success++
 				logger.Printf("成功: 视频 %s 生成HLS切片完成\n", path)
+
+				// 移动封面文件到HLS目录
+				moveCoverToHLS(path)
 
 				// 发送成功更新
 				progressChan <- map[string]interface{}{
