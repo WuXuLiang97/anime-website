@@ -213,49 +213,50 @@ func scanVideos() []AnimeInfo {
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
 
-	// 确保视频目录存在
-	if _, err := os.Stat(videosDir); os.IsNotExist(err) {
-		logger.Printf("警告: 视频目录 %s 不存在，将创建\n", videosDir)
-		err = os.MkdirAll(videosDir, 0755)
+	// 确保HLS目录存在
+	if _, err := os.Stat(hlsDir); os.IsNotExist(err) {
+		logger.Printf("警告: HLS目录 %s 不存在，将创建\n", hlsDir)
+		err = os.MkdirAll(hlsDir, 0755)
 		if err != nil {
-			logger.Printf("错误: 创建视频目录失败: %v\n", err)
+			logger.Printf("错误: 创建HLS目录失败: %v\n", err)
 			return animes
 		}
 	}
 
-	// 扫描视频目录
-	entries, err := ioutil.ReadDir(videosDir)
+	// 扫描HLS目录
+	entries, err := ioutil.ReadDir(hlsDir)
 	if err != nil {
-		logger.Printf("错误: 扫描视频目录失败: %v\n", err)
+		logger.Printf("错误: 扫描HLS目录失败: %v\n", err)
 		return animes
 	}
 
 	// 遍历子目录（每个子目录代表一个动画）
 	for _, entry := range entries {
 		if entry.IsDir() {
-			animeFolder := filepath.Join(videosDir, entry.Name())
 			animeName := entry.Name()
+			hlsAnimePath := filepath.Join(hlsDir, animeName)
 
 			wg.Add(1)
-			go func(folder, name string) {
+			go func(name string, hlsFolder string) {
 				defer wg.Done()
 
-				// 扫描动画目录中的视频文件
-				videoFiles, err := ioutil.ReadDir(folder)
-				if err != nil {
-					logger.Printf("警告: 扫描动画目录 %s 失败: %v\n", folder, err)
-					return
-				}
-
 				var videos []VideoFile
-				for _, file := range videoFiles {
-					if !file.IsDir() && isVideoFile(file.Name()) {
-						// 修复：使用path.Join构建URL路径，再标准化
-						videoPath := normalizeURLPath(path.Join("/", videosDir, name, file.Name()))
-						videos = append(videos, VideoFile{
-							Path:     videoPath,
-							FileName: file.Name(),
-						})
+				// 扫描HLS目录中的子目录（每个子目录代表一集）
+				hlsEntries, err := ioutil.ReadDir(hlsFolder)
+				if err == nil {
+					for _, hlsEntry := range hlsEntries {
+						if hlsEntry.IsDir() {
+							// 检查是否存在playlist.m3u8文件
+							playlistPath := filepath.Join(hlsFolder, hlsEntry.Name(), "playlist.m3u8")
+							if _, err := os.Stat(playlistPath); err == nil {
+								// 构建HLS URL路径
+								hlsURL := normalizeURLPath(path.Join("/", hlsDir, name, hlsEntry.Name(), "playlist.m3u8"))
+								videos = append(videos, VideoFile{
+									Path:     hlsURL,
+									FileName: hlsEntry.Name(),
+								})
+							}
+						}
 					}
 				}
 
@@ -274,18 +275,11 @@ func scanVideos() []AnimeInfo {
 					coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
 
 					for _, format := range coverFormats {
-						// 先检查HLS目录中的封面文件
+						// 检查HLS目录中的封面文件
 						hlsCoverPath := filepath.Join(hlsDir, name, format)
 						if _, err := os.Stat(hlsCoverPath); err == nil {
 							// 修复：标准化封面URL路径
 							coverURL = normalizeURLPath(path.Join("/", hlsDir, name, format))
-							break
-						}
-						// 再检查原视频目录中的封面文件
-						coverPath := filepath.Join(folder, format)
-						if _, err := os.Stat(coverPath); err == nil {
-							// 修复：标准化封面URL路径
-							coverURL = normalizeURLPath(path.Join("/", videosDir, name, format))
 							break
 						}
 					}
@@ -299,12 +293,6 @@ func scanVideos() []AnimeInfo {
 						FolderName: name,
 					}
 
-					// 检查是否有HLS切片
-					hlsPath := getHLSURL(mainVideo.Path)
-					if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
-						anime.VideoURL = hlsPath
-					}
-
 					mutex.Lock()
 					animes = append(animes, anime)
 					mutex.Unlock()
@@ -314,7 +302,7 @@ func scanVideos() []AnimeInfo {
 						updateAnimeInfo(anime)
 					}
 				}
-			}(animeFolder, animeName)
+			}(animeName, hlsAnimePath)
 		}
 	}
 
@@ -368,6 +356,38 @@ func getAnimesFromDB() []AnimeInfo {
 		logger.Printf("错误: 从数据库获取动画信息失败: %v\n", result.Error)
 		return scanVideos() // 回退到扫描本地文件
 	}
+
+	// 检查并更新封面路径
+	for i := range animes {
+		// 检查当前封面路径是否存在
+		currentCoverPath := strings.TrimPrefix(animes[i].Cover, "/")
+		if _, err := os.Stat(currentCoverPath); os.IsNotExist(err) {
+			// 封面文件不存在，重新生成封面路径
+			coverURL := "/static/css/default-cover.jpg" // 默认封面
+			coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
+
+			for _, format := range coverFormats {
+				// 检查HLS目录中的封面文件
+				hlsCoverPath := filepath.Join(hlsDir, animes[i].FolderName, format)
+				if _, err := os.Stat(hlsCoverPath); err == nil {
+					coverURL = normalizeURLPath(path.Join("/", hlsDir, animes[i].FolderName, format))
+					break
+				}
+				// 检查原视频目录中的封面文件
+				coverPath := filepath.Join(videosDir, animes[i].FolderName, format)
+				if _, err := os.Stat(coverPath); err == nil {
+					coverURL = normalizeURLPath(path.Join("/", videosDir, animes[i].FolderName, format))
+					break
+				}
+			}
+
+			// 更新封面路径
+			animes[i].Cover = coverURL
+			// 同时更新数据库
+			db.Model(&animes[i]).Update("cover", coverURL)
+		}
+	}
+
 	return animes
 }
 
@@ -588,6 +608,10 @@ func getHLSURL(videoPath string) string {
 	return hlsURL
 }
 
+// 已移动封面的目录记录
+var movedCoverDirs = make(map[string]bool)
+var movedCoverDirsMutex sync.Mutex
+
 // 移动封面文件到HLS目录
 func moveCoverToHLS(videoPath string) {
 	// 修复：先标准化URL路径
@@ -602,6 +626,15 @@ func moveCoverToHLS(videoPath string) {
 	}
 
 	animeTitle := pathParts[0]
+
+	// 检查是否已经移动过该目录的封面
+	movedCoverDirsMutex.Lock()
+	if movedCoverDirs[animeTitle] {
+		movedCoverDirsMutex.Unlock()
+		return
+	}
+	movedCoverDirs[animeTitle] = true
+	movedCoverDirsMutex.Unlock()
 
 	// 构建视频目录路径
 	videoDir := filepath.Join(videosDir, animeTitle)
@@ -625,6 +658,7 @@ func moveCoverToHLS(videoPath string) {
 	coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
 	for _, format := range coverFormats {
 		coverPath := filepath.Join(videoDir, format)
+		// 再次检查文件是否存在（防止并发操作导致文件已被移动）
 		if _, err := os.Stat(coverPath); err == nil {
 			// 封面文件存在，移动到HLS目录
 			targetPath := filepath.Join(hlsDirPath, format)
@@ -909,8 +943,9 @@ func searchHandler(c *gin.Context) {
 
 	// 渲染模板
 	c.HTML(http.StatusOK, "index.html", gin.H{
-		"Animes":  animes,
-		"Keyword": keyword,
+		"Animes":      animes,
+		"Keyword":     keyword,
+		"TotalAnimes": len(animes),
 	})
 }
 
@@ -1118,8 +1153,9 @@ func batchHLSHandler(c *gin.Context) {
 	go func() {
 		total, success, failed, skipped, errors := batchGenerateHLS(normalizedVideos, request.UseGPU, progressChan, stopChan)
 
-		// 发送完成消息
-		progressChan <- map[string]interface{}{
+		// 发送完成消息（使用非阻塞发送，防止通道已关闭）
+		select {
+		case progressChan <- map[string]interface{}{
 			"type":      "complete",
 			"total":     total,
 			"success":   success,
@@ -1127,6 +1163,10 @@ func batchHLSHandler(c *gin.Context) {
 			"skipped":   skipped,
 			"errors":    errors,
 			"timestamp": time.Now().Format(time.RFC3339),
+		}:
+			// 消息发送成功
+		default:
+			// 通道已关闭，忽略
 		}
 
 		// 关闭通道
