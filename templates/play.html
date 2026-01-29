@@ -688,6 +688,9 @@
           titleElement.textContent = videoTitle;
           document.title = videoTitle + " - 播放页面";
           
+          // 更新初始视频URL，确保保存的是当前集数的播放记录
+          document.getElementById('initialVideoUrl').value = videoUrl;
+          
           // 初始化播放器
           const isSpecialFormat = initPlayer(videoUrl);
           
