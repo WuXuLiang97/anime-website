@@ -800,11 +800,16 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 		// 检查是否需要停止
 		select {
 		case <-stopChan:
-			// 发送停止消息
-			progressChan <- map[string]interface{}{
+			// 发送停止消息（使用非阻塞发送，防止通道已关闭）
+			select {
+			case progressChan <- map[string]interface{}{
 				"type":      "stop",
 				"message":   "处理已停止",
 				"timestamp": time.Now().Format(time.RFC3339),
+			}:
+				// 消息发送成功
+			default:
+				// 通道已关闭，忽略
 			}
 			// 等待已开始的任务完成
 			wg.Wait()
@@ -823,11 +828,17 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 		if _, err := os.Stat(hlsFilePath); err == nil {
 			// HLS切片已存在，跳过处理
 			skipped++
-			progressChan <- map[string]interface{}{
+			// 发送跳过消息（使用非阻塞发送，防止通道已关闭）
+			select {
+			case progressChan <- map[string]interface{}{
 				"type":      "skipped",
 				"video":     normalizedPath,
 				"message":   "HLS切片已存在，跳过处理",
 				"timestamp": time.Now().Format(time.RFC3339),
+			}:
+				// 消息发送成功
+			default:
+				// 通道已关闭，忽略
 			}
 			continue
 		}
@@ -841,14 +852,19 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 				<-semaphore // 释放信号量
 			}()
 
-			// 发送进度更新
-			progressChan <- map[string]interface{}{
+			// 发送进度更新（使用非阻塞发送，防止通道已关闭）
+			select {
+			case progressChan <- map[string]interface{}{
 				"type":      "progress",
 				"current":   idx + 1,
 				"total":     total,
 				"video":     path,
 				"status":    "processing",
 				"timestamp": time.Now().Format(time.RFC3339),
+			}:
+				// 消息发送成功
+			default:
+				// 通道已关闭，忽略
 			}
 
 			// 生成HLS切片
@@ -865,12 +881,17 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 				errors = append(errors, errorMsg)
 				logger.Printf("错误: %s\n", errorMsg)
 
-				// 发送错误更新
-				progressChan <- map[string]interface{}{
+				// 发送错误更新（使用非阻塞发送，防止通道已关闭）
+				select {
+				case progressChan <- map[string]interface{}{
 					"type":      "error",
 					"video":     path,
 					"message":   err.Error(),
 					"timestamp": time.Now().Format(time.RFC3339),
+				}:
+					// 消息发送成功
+				default:
+					// 通道已关闭，忽略
 				}
 			} else {
 				success++
@@ -879,18 +900,22 @@ func batchGenerateHLS(videos []string, useGPU bool, progressChan chan<- map[stri
 				// 移动封面文件到HLS目录
 				moveCoverToHLS(path)
 
-				// 发送成功更新
-				progressChan <- map[string]interface{}{
+				// 发送成功更新（使用非阻塞发送，防止通道已关闭）
+				select {
+				case progressChan <- map[string]interface{}{
 					"type":      "success",
 					"video":     path,
 					"timestamp": time.Now().Format(time.RFC3339),
+				}:
+					// 消息发送成功
+				default:
+					// 通道已关闭，忽略
 				}
 			}
 		}(i, normalizedPath)
 	}
 
 	wg.Wait()
-	close(progressChan)
 
 	return total, success, failed, skipped, errors
 }
