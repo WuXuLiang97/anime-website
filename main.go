@@ -1626,6 +1626,71 @@ func clearAllPlayHistoryHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
+// 搜索动画API
+func searchAnimesHandler(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少搜索关键词"})
+		return
+	}
+
+	// 搜索动画
+	animes := searchAnimes(keyword)
+
+	c.JSON(http.StatusOK, gin.H{"animes": animes})
+}
+
+// 删除动画API
+func deleteAnimeHandler(c *gin.Context) {
+	folderName := c.Query("folderName")
+	if folderName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少动画文件夹名称"})
+		return
+	}
+
+	// 删除文件系统中的动画文件夹
+	// 1. 删除原始视频目录
+	originalDir := filepath.Join(videosDir, folderName)
+	if err := os.RemoveAll(originalDir); err != nil {
+		logger.Printf("警告: 删除原始视频目录失败: %v\n", err)
+		// 继续执行，不返回错误
+	} else {
+		logger.Printf("成功删除原始视频目录: %s\n", originalDir)
+	}
+
+	// 2. 删除HLS目录
+	hlsDirPath := filepath.Join(hlsDir, folderName)
+	if err := os.RemoveAll(hlsDirPath); err != nil {
+		logger.Printf("警告: 删除HLS目录失败: %v\n", err)
+		// 继续执行，不返回错误
+	} else {
+		logger.Printf("成功删除HLS目录: %s\n", hlsDirPath)
+	}
+
+	// 3. 从数据库中删除记录
+	if !localMode && db != nil {
+		// 删除动画信息
+		result := db.Where("folder_name = ?", folderName).Delete(&AnimeInfo{})
+		if result.Error != nil {
+			logger.Printf("错误: 从数据库删除动画信息失败: %v\n", result.Error)
+			// 继续执行，不返回错误
+		} else {
+			logger.Printf("成功从数据库删除动画信息: %s\n", folderName)
+		}
+
+		// 删除相关的播放记录
+		result = db.Where("video_url LIKE ?", "%"+folderName+"%").Delete(&PlayHistory{})
+		if result.Error != nil {
+			logger.Printf("错误: 从数据库删除播放记录失败: %v\n", result.Error)
+			// 继续执行，不返回错误
+		} else {
+			logger.Printf("成功从数据库删除相关播放记录: %s\n", folderName)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
 // 主函数
 func main() {
 	// 初始化日志
@@ -1682,6 +1747,10 @@ func main() {
 	r.GET("/api/play-history/all", getAllPlayHistoryHandler)
 	r.DELETE("/api/play-history/delete", deletePlayHistoryHandler)
 	r.DELETE("/api/play-history/clear", clearAllPlayHistoryHandler)
+
+	// 动画管理相关API
+	r.GET("/api/animes/search", searchAnimesHandler)
+	r.DELETE("/api/animes/delete", deleteAnimeHandler)
 
 	// 启动服务器
 	port := config.Server.Port

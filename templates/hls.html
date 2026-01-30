@@ -164,6 +164,60 @@
         width: 18px;
         height: 18px;
       }
+      .search-box {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        max-width: 300px;
+      }
+      .search-input {
+        flex: 1;
+        padding: 12px 16px;
+        font-size: 16px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color 0.3s ease;
+      }
+      .search-input:focus {
+        border-color: #4285f4;
+      }
+      .search-results {
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        background-color: #ffffff;
+        min-height: 100px;
+      }
+      .result-item {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .anime-info {
+        flex: 1;
+      }
+      .result-item:last-child {
+        border-bottom: none;
+      }
+      .result-item:hover {
+        background-color: #f5f5f5;
+      }
+      .delete-btn {
+        margin-left: auto;
+        background-color: #ea4335;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .delete-btn:hover {
+        background-color: #d33a2b;
+      }
     </style>
   </head>
   <body>
@@ -226,6 +280,16 @@
             <ul id="errorItems"></ul>
           </div>
         </section>
+          <h2>动画管理</h2>
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="输入动画名称进行搜索..." class="search-input">
+            <button id="searchBtn" class="btn">搜索</button>
+          </div>
+          <div class="search-results" id="searchResults">
+            <div class="result-item" id="noResults" style="display: none;">
+              没有找到匹配的动画
+            </div>
+          </div>
       </main>
 
       <footer class="site-footer">
@@ -459,9 +523,109 @@
         addLog('处理已停止');
       }
 
+      // 搜索和删除功能
+      const searchInput = document.getElementById('searchInput');
+      const searchBtn = document.getElementById('searchBtn');
+      const searchResults = document.getElementById('searchResults');
+      const noResults = document.getElementById('noResults');
+
+      // 搜索动画
+      function searchAnimes() {
+        const keyword = searchInput.value.trim();
+        if (keyword === '') {
+          clearSearchResults();
+          showNoResults('请输入搜索关键词');
+          return;
+        }
+
+        // 发送搜索请求
+        fetch(`/api/animes/search?keyword=${encodeURIComponent(keyword)}`)
+          .then(response => response.json())
+          .then(data => {
+            clearSearchResults();
+            if (data.animes && data.animes.length > 0) {
+              data.animes.forEach(anime => {
+                addSearchResult(anime);
+              });
+            } else {
+              showNoResults('没有找到匹配的动画');
+            }
+          })
+          .catch(error => {
+            console.error('搜索失败:', error);
+            clearSearchResults();
+            showNoResults('搜索失败，请稍后重试');
+          });
+      }
+
+      // 清除搜索结果
+      function clearSearchResults() {
+        // 保留noResults元素，清除其他结果
+        const resultItems = searchResults.querySelectorAll('.result-item:not(#noResults)');
+        resultItems.forEach(item => item.remove());
+        noResults.style.display = 'none';
+      }
+
+      // 显示无结果提示
+      function showNoResults(message) {
+        noResults.textContent = message;
+        noResults.style.display = 'block';
+      }
+
+      // 添加搜索结果
+      function addSearchResult(anime) {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'result-item';
+        resultItem.innerHTML = `
+          <div class="anime-info">
+            <strong>${anime.title}</strong>
+            <span style="margin-left: 10px; color: #666;">${anime.episodes} 集</span>
+          </div>
+          <button class="delete-btn" data-folder="${anime.folder_name}">删除</button>
+        `;
+        searchResults.appendChild(resultItem);
+
+        // 添加删除按钮事件监听
+        const deleteBtn = resultItem.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', function() {
+          const folderName = this.getAttribute('data-folder');
+          if (confirm(`确定要删除动画 "${anime.title}" 吗？`)) {
+            deleteAnime(folderName);
+          }
+        });
+      }
+
+      // 删除动画
+      function deleteAnime(folderName) {
+        // 发送删除请求
+        fetch(`/api/animes/delete?folderName=${encodeURIComponent(folderName)}`, {
+          method: 'DELETE'
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === 'success') {
+              // 删除成功，重新搜索
+              searchAnimes();
+              alert('动画删除成功！');
+            } else {
+              alert('删除失败: ' + (data.error || '未知错误'));
+            }
+          })
+          .catch(error => {
+            console.error('删除失败:', error);
+            alert('删除失败，请稍后重试');
+          });
+      }
+
       // 事件监听
       startBtn.addEventListener('click', startProcessing);
       stopBtn.addEventListener('click', stopProcessing);
+      searchBtn.addEventListener('click', searchAnimes);
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          searchAnimes();
+        }
+      });
     </script>
   </body>
 </html>
