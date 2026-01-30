@@ -990,6 +990,21 @@ func playHandler(c *gin.Context) {
 	// 修复：标准化视频URL
 	videoURL = normalizeURLPath(videoURL)
 
+	// 从videoURL中提取动画文件夹名称（如果没有keyword参数）
+	if keyword == "" {
+		// 提取文件夹名称
+		pathParts := strings.Split(strings.TrimPrefix(videoURL, "/"), "/")
+		if len(pathParts) >= 3 {
+			// 对于/static/videos/动画名称/视频文件.mp4格式
+			if pathParts[0] == "static" && pathParts[1] == "videos" {
+				keyword = pathParts[2]
+			} else if pathParts[0] == "static" && pathParts[1] == "hls" {
+				// 对于/static/hls/动画名称/集数/playlist.m3u8格式
+				keyword = pathParts[2]
+			}
+		}
+	}
+
 	// 获取动画信息
 	var anime AnimeInfo
 	var found bool
