@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path" // 新增：处理URL路径
@@ -431,32 +432,56 @@ func getAnimeInfo(folderName string) (AnimeInfo, bool) {
 		}
 	}
 
-	// 回退到本地搜索
+	// 1. 检查原始视频目录
 	animeFolder := filepath.Join(videosDir, folderName)
-	if _, err := os.Stat(animeFolder); os.IsNotExist(err) {
-		return anime, false
-	}
-
-	// 扫描动画目录中的视频文件
-	videoFiles, err := ioutil.ReadDir(animeFolder)
-	if err != nil {
-		logger.Printf("警告: 扫描动画目录 %s 失败: %v\n", animeFolder, err)
-		return anime, false
-	}
-
 	var videos []VideoFile
-	for _, file := range videoFiles {
-		if !file.IsDir() && isVideoFile(file.Name()) {
-			// 修复：标准化视频URL路径
-			videoPath := normalizeURLPath(path.Join("/", videosDir, folderName, file.Name()))
-			videos = append(videos, VideoFile{
-				Path:     videoPath,
-				FileName: file.Name(),
-			})
+	var hasVideoFiles bool
+
+	// 扫描原始视频目录中的视频文件
+	if _, err := os.Stat(animeFolder); err == nil {
+		videoFiles, err := ioutil.ReadDir(animeFolder)
+		if err == nil {
+			for _, file := range videoFiles {
+				if !file.IsDir() && isVideoFile(file.Name()) {
+					// 修复：标准化视频URL路径
+					videoPath := normalizeURLPath(path.Join("/", videosDir, folderName, file.Name()))
+					videos = append(videos, VideoFile{
+						Path:     videoPath,
+						FileName: file.Name(),
+					})
+					hasVideoFiles = true
+				}
+			}
 		}
 	}
 
-	if len(videos) > 0 {
+	// 2. 如果原始视频目录不存在或没有视频文件，检查HLS目录
+	hlsFolder := filepath.Join(hlsDir, folderName)
+	if !hasVideoFiles {
+		if _, err := os.Stat(hlsFolder); err == nil {
+			hlsEntries, err := ioutil.ReadDir(hlsFolder)
+			if err == nil {
+				for _, entry := range hlsEntries {
+					if entry.IsDir() {
+						// 检查是否存在playlist.m3u8文件
+						playlistPath := filepath.Join(hlsFolder, entry.Name(), "playlist.m3u8")
+						if _, err := os.Stat(playlistPath); err == nil {
+							// 构建HLS URL路径
+							hlsURL := normalizeURLPath(path.Join("/", hlsDir, folderName, entry.Name(), "playlist.m3u8"))
+							videos = append(videos, VideoFile{
+								Path:     hlsURL,
+								FileName: entry.Name(),
+							})
+							hasVideoFiles = true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 如果找到视频文件（无论是原始视频还是HLS），创建动画信息
+	if hasVideoFiles && len(videos) > 0 {
 		// 按文件名排序
 		sort.Slice(videos, func(i, j int) bool {
 			return videos[i].FileName < videos[j].FileName
@@ -496,9 +521,11 @@ func getAnimeInfo(folderName string) (AnimeInfo, bool) {
 		}
 
 		// 检查是否有HLS切片
-		hlsPath := getHLSURL(mainVideo.Path)
-		if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
-			anime.VideoURL = hlsPath
+		if !strings.Contains(mainVideo.Path, "/hls/") {
+			hlsPath := getHLSURL(mainVideo.Path)
+			if _, err := os.Stat(strings.TrimPrefix(hlsPath, "/")); err == nil {
+				anime.VideoURL = hlsPath
+			}
 		}
 
 		return anime, true
@@ -982,6 +1009,20 @@ func playHandler(c *gin.Context) {
 	summary := c.Query("summary")
 	keyword := c.Query("keyword")
 
+	// 解码URL编码的参数
+	if keyword != "" {
+		decodedKeyword, err := url.QueryUnescape(keyword)
+		if err == nil {
+			keyword = decodedKeyword
+		}
+	}
+
+	logger.Printf("=== 播放路由收到请求 ===")
+	logger.Printf("videoURL: %s", videoURL)
+	logger.Printf("title: %s", title)
+	logger.Printf("summary: %s", summary)
+	logger.Printf("keyword: %s", keyword)
+
 	if videoURL == "" {
 		c.Redirect(http.StatusFound, "/")
 		return
@@ -989,37 +1030,69 @@ func playHandler(c *gin.Context) {
 
 	// 修复：标准化视频URL
 	videoURL = normalizeURLPath(videoURL)
+	logger.Printf("标准化后的videoURL: %s", videoURL)
 
 	// 从videoURL中提取动画文件夹名称（如果没有keyword参数）
 	if keyword == "" {
+		logger.Printf("keyword为空，尝试从videoURL中提取")
 		// 提取文件夹名称
 		pathParts := strings.Split(strings.TrimPrefix(videoURL, "/"), "/")
-		if len(pathParts) >= 3 {
-			// 对于/static/videos/动画名称/视频文件.mp4格式
-			if pathParts[0] == "static" && pathParts[1] == "videos" {
-				keyword = pathParts[2]
-			} else if pathParts[0] == "static" && pathParts[1] == "hls" {
-				// 对于/static/hls/动画名称/集数/playlist.m3u8格式
-				keyword = pathParts[2]
+		logger.Printf("pathParts: %v", pathParts)
+
+		// 查找static部分的索引
+		var staticIndex int = -1
+		for i, part := range pathParts {
+			if part == "static" {
+				staticIndex = i
+				break
 			}
 		}
+		logger.Printf("staticIndex: %d", staticIndex)
+
+		// 确保找到static部分且后面至少有两个部分
+		if staticIndex != -1 && len(pathParts) >= staticIndex+3 {
+			logger.Printf("找到static部分，检查后面的路径")
+			// 对于/static/videos/动画名称/视频文件.mp4格式
+			if pathParts[staticIndex+1] == "videos" {
+				keyword = pathParts[staticIndex+2]
+				logger.Printf("从videos路径提取的keyword: %s", keyword)
+			} else if pathParts[staticIndex+1] == "hls" {
+				// 对于/static/hls/动画名称/集数/playlist.m3u8格式
+				keyword = pathParts[staticIndex+2]
+				logger.Printf("从hls路径提取的keyword: %s", keyword)
+			}
+		} else {
+			logger.Printf("无法从videoURL中提取keyword，staticIndex=%d, len(pathParts)=%d", staticIndex, len(pathParts))
+		}
 	}
+
+	logger.Printf("最终的keyword: %s", keyword)
 
 	// 获取动画信息
 	var anime AnimeInfo
 	var found bool
 	if keyword != "" {
+		logger.Printf("使用keyword '%s' 获取动画信息", keyword)
 		anime, found = getAnimeInfo(keyword)
 		if found {
 			title = anime.Title
 			summary = anime.Summary
+			logger.Printf("获取到动画信息: Title=%s, Summary=%s", title, summary)
+		} else {
+			logger.Printf("未找到动画信息")
 		}
+	} else {
+		logger.Printf("keyword为空，无法获取动画信息")
 	}
 
 	// 获取动画的所有视频文件
 	var videoList []VideoFile
 	if keyword != "" {
+		logger.Printf("使用keyword '%s' 获取视频列表", keyword)
 		videoList = getAnimeVideos(keyword)
+		logger.Printf("获取到 %d 个视频文件", len(videoList))
+	} else {
+		logger.Printf("keyword为空，无法获取视频列表")
 	}
 
 	// 检查是否有HLS切片，如果没有则生成
@@ -1043,6 +1116,8 @@ func playHandler(c *gin.Context) {
 			videoURL = hlsPath
 		}
 	}
+
+	logger.Printf("准备渲染模板，VideoList长度: %d", len(videoList))
 
 	// 渲染模板
 	c.HTML(http.StatusOK, "play.html", gin.H{
