@@ -310,7 +310,7 @@ body {
 /* 动画网格样式 */
 .anime-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, 148px);
   gap: 25px;
   margin-top: 30px;
   justify-content: center;
@@ -344,7 +344,7 @@ body {
   position: relative;
   overflow: hidden;
   width: 100%;
-  height: 280px;
+  height: 198px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   border-radius: 12px 12px 0 0;
 }
@@ -358,7 +358,8 @@ body {
   object-fit: cover !important;
   transition: transform 0.4s ease !important;
   max-width: 100% !important;
-  max-height: 100% !important;
+  max-height: 198px !important;
+  display: block !important;
 }
 
 .anime-card:hover .anime-cover img {
@@ -368,13 +369,13 @@ body {
 /* 集数徽章样式 */
 .episode-badge {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 8px; /* 原有10px，略减 */
+  left: 8px; /* 原有10px，略减 */
   background: rgba(255, 107, 107, 0.9);
   color: #fff;
-  padding: 6px 12px;
+  padding: 4px 8px; /* 原有6px 12px，略减 */
   border-radius: 20px;
-  font-size: 0.85rem;
+  font-size: 0.8rem; /* 原有0.85rem，略减 */
   font-weight: 600;
   z-index: 2;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -408,7 +409,7 @@ body {
 
 .search-card .cover-img {
   width: 100%;
-  height: 200px;
+  height: 198px;
   object-fit: cover;
   position: static !important;
   max-width: 100% !important;
@@ -592,7 +593,7 @@ body {
 }
 
 .result-card-left {
-  width: 200px;
+  width: 148px;
   flex-shrink: 0;
   position: relative;
 }
@@ -600,7 +601,7 @@ body {
 .result-cover {
   position: relative;
   width: 100%;
-  height: 280px;
+  height: 198px;
   overflow: hidden;
   background: #f0f0f0;
   border-radius: 8px;
@@ -621,11 +622,11 @@ body {
 /* 首页动画封面样式优化 */
 .anime-cover img {
   width: 100% !important;
-  height: 280px !important;
+  height: 198px !important;
   object-fit: cover !important;
   transition: transform 0.4s ease !important;
   max-width: 100% !important;
-  max-height: 280px !important;
+  max-height: 198px !important;
   display: block !important;
 }
 
@@ -811,20 +812,22 @@ body {
   border: 1px solid #e0e0e0;
 }
 
-/* 响应式适配 */
+/* 响应式适配 - 768px以下，保持图片高度198px */
 @media (max-width: 768px) {
   .result-card {
     flex-direction: column;
   }
   
   .result-card-left {
-    width: 100%;
+    width: 148px; /* 新增：移动端也保持148px宽度，可居中 */
+    margin: 0 auto; /* 新增：移动端图片居中显示 */
   }
   
   .result-cover {
-    height: 220px;
+    height: 198px; /* 替换原有220px，统一高度 */
   }
   
+  /* 原有其他样式保留，不用动 */
   .search-section {
     padding: 40px 20px;
   }
