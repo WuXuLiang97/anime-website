@@ -13,10 +13,10 @@ body {
 }
 
 .container {
-  max-width: 1400px;
+  max-width: 1920px; /* 放大最大宽度，适配160px左右边距的宽屏 */
   margin: 0 auto;
-  padding: 20px;
-  position: relative;
+  padding: 20px 160px; /* 核心修改：上下20px，左右160px间距 */
+  width: 100%; /* 占满可用宽度 */
 }
 
 /* 头部样式 */
