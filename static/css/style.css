@@ -814,6 +814,11 @@ body {
 
 /* 响应式适配 - 768px以下，保持图片高度198px */
 @media (max-width: 768px) {
+  .container {
+  margin: 0 auto;
+  padding: 10px 0px; /* 核心修改：上下20px，左右160px间距 */
+  width: 100%; /* 占满可用宽度 */
+  }
   .result-card {
     flex-direction: column;
   }
