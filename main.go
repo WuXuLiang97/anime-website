@@ -132,7 +132,7 @@ func initConfig() {
 		// 使用默认配置
 		config = Config{
 			Server: ServerConfig{
-				Port: 8080,
+				Port: 5010,
 			},
 			Database: DatabaseConfig{
 				DSN: "root:Wxl111222@tcp(localhost:3306)/anime_db?charset=utf8mb4&parseTime=True&loc=Local",
@@ -149,7 +149,7 @@ func initConfig() {
 			// 使用默认配置
 			config = Config{
 				Server: ServerConfig{
-					Port: 8080,
+					Port: 5010,
 				},
 				Database: DatabaseConfig{
 					DSN: "root:Wxl111222@tcp(localhost:3306)/anime_db?charset=utf8mb4&parseTime=True&loc=Local",
@@ -638,6 +638,141 @@ func getHLSURL(videoPath string) string {
 // 已移动封面的目录记录
 var movedCoverDirs = make(map[string]bool)
 var movedCoverDirsMutex sync.Mutex
+
+// 从视频路径中提取动画目录名称
+func extractAnimeDirectory(videoPath string) string {
+	// 标准化路径
+	normalizedPath := normalizeURLPath(videoPath)
+
+	// 移除URL前缀
+	relativePath := strings.TrimPrefix(normalizedPath, "/static/")
+
+	// 拆分路径
+	pathParts := strings.Split(relativePath, "/")
+
+	// 检查路径格式
+	if len(pathParts) >= 2 {
+		// 对于 /static/videos/动画名称/视频文件.mp4 格式
+		if pathParts[0] == "videos" {
+			return pathParts[1]
+		}
+		// 对于 /static/hls/动画名称/集数/playlist.m3u8 格式
+		if pathParts[0] == "hls" && len(pathParts) >= 2 {
+			return pathParts[1]
+		}
+	}
+
+	return ""
+}
+
+// 增量扫描指定的动画目录
+func scanAnimeDirectories(directories []string) []AnimeInfo {
+	var animes []AnimeInfo
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+
+	// 去重目录列表
+	dirMap := make(map[string]bool)
+	uniqueDirs := []string{}
+	for _, dir := range directories {
+		if dir != "" && !dirMap[dir] {
+			dirMap[dir] = true
+			uniqueDirs = append(uniqueDirs, dir)
+		}
+	}
+
+	logger.Printf("开始增量扫描 %d 个动画目录...", len(uniqueDirs))
+
+	// 遍历每个目录
+	for _, dirName := range uniqueDirs {
+		hlsAnimePath := filepath.Join(hlsDir, dirName)
+
+		// 检查目录是否存在
+		if _, err := os.Stat(hlsAnimePath); os.IsNotExist(err) {
+			logger.Printf("警告: 目录 %s 不存在，跳过扫描", hlsAnimePath)
+			continue
+		}
+
+		wg.Add(1)
+		go func(name string, hlsFolder string) {
+			defer wg.Done()
+
+			var videos []VideoFile
+			// 扫描HLS目录中的子目录（每个子目录代表一集）
+			hlsEntries, err := ioutil.ReadDir(hlsFolder)
+			if err == nil {
+				for _, hlsEntry := range hlsEntries {
+					if hlsEntry.IsDir() {
+						// 检查是否存在playlist.m3u8文件
+						playlistPath := filepath.Join(hlsFolder, hlsEntry.Name(), "playlist.m3u8")
+						if _, err := os.Stat(playlistPath); err == nil {
+							// 构建HLS URL路径
+							hlsURL := normalizeURLPath(path.Join("/", hlsDir, name, hlsEntry.Name(), "playlist.m3u8"))
+							videos = append(videos, VideoFile{
+								Path:     hlsURL,
+								FileName: hlsEntry.Name(),
+							})
+						}
+					}
+				}
+			}
+
+			// 如果有视频文件，创建动画信息
+			if len(videos) > 0 {
+				// 按文件名排序
+				sort.Slice(videos, func(i, j int) bool {
+					return videos[i].FileName < videos[j].FileName
+				})
+
+				// 使用第一个视频文件作为主视频
+				mainVideo := videos[0]
+
+				// 检查封面文件
+				coverURL := "/static/css/default-cover.jpg" // 默认封面
+				coverFormats := []string{"cover.jpg", "cover.png", "cover.jpeg", "cover.webp"}
+
+				for _, format := range coverFormats {
+					// 检查HLS目录中的封面文件
+					hlsCoverPath := filepath.Join(hlsDir, name, format)
+					if _, err := os.Stat(hlsCoverPath); err == nil {
+						// 标准化封面URL路径
+						coverURL = normalizeURLPath(path.Join("/", hlsDir, name, format))
+						break
+					}
+				}
+
+				anime := AnimeInfo{
+					Title:      name,
+					Summary:    fmt.Sprintf("这是一部名为 %s 的动画", name),
+					Cover:      coverURL,
+					VideoURL:   mainVideo.Path,
+					Episodes:   len(videos),
+					FolderName: name,
+				}
+
+				mutex.Lock()
+				animes = append(animes, anime)
+				mutex.Unlock()
+
+				// 更新或插入到数据库
+				if !localMode {
+					updateAnimeInfo(anime)
+				}
+			}
+		}(dirName, hlsAnimePath)
+	}
+
+	wg.Wait()
+
+	// 按标题排序
+	sort.Slice(animes, func(i, j int) bool {
+		return animes[i].Title < animes[j].Title
+	})
+
+	logger.Printf("增量扫描完成，更新了 %d 个动画信息", len(animes))
+
+	return animes
+}
 
 // 移动封面文件到HLS目录
 func moveCoverToHLS(videoPath string) {
@@ -1302,6 +1437,26 @@ func batchHLSHandler(c *gin.Context) {
 		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
 		c.Writer.Flush()
 	}
+
+	// 异步增量扫描视频
+	go func() {
+		// 收集批量处理中涉及的动画目录
+		directories := []string{}
+		for _, videoPath := range request.Videos {
+			dirName := extractAnimeDirectory(videoPath)
+			if dirName != "" {
+				directories = append(directories, dirName)
+			}
+		}
+
+		if len(directories) > 0 {
+			logger.Println("开始异步增量同步本地动画到数据库...")
+			scanAnimeDirectories(directories)
+			logger.Println("异步增量同步本地动画到数据库完成！")
+		} else {
+			logger.Println("批量处理完成，没有需要同步的动画目录")
+		}
+	}()
 }
 
 // 停止批量处理API路由
@@ -1754,9 +1909,14 @@ func main() {
 
 	// 启动服务器
 	port := config.Server.Port
+	// 使用IPv6监听地址，确保同时支持IPv4和IPv6
+	listenAddr := fmt.Sprintf("[::]:%d", port)
+	// 主要IPv6地址（更稳定）
+	primaryIPv6Addr := "240e:351:580a:6400:55ab:f75f:cee7:1da1"
 	logger.Printf("服务器启动成功！监听端口: %d\n", port)
 	logger.Printf("访问地址: http://localhost:%d\n", port)
 	logger.Printf("HLS批量生成页面: http://localhost:%d/hls\n", port)
+	logger.Printf("IPv6访问地址: http://[%s]:%d\n", primaryIPv6Addr, port)
 
 	// 异步扫描视频
 	go func() {
@@ -1765,7 +1925,7 @@ func main() {
 		logger.Println("异步同步本地动画到数据库完成！")
 	}()
 
-	err := r.Run(fmt.Sprintf(":%d", port))
+	err := r.Run(listenAddr)
 	if err != nil {
 		logger.Fatalf("服务器启动失败: %v\n", err)
 	}
