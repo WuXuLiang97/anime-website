@@ -854,16 +854,24 @@ func generateHLS(videoPath string) error {
 	// Windows下需要将/转换为\
 	videoFilePath = filepath.FromSlash(videoFilePath)
 
-	// 构建FFmpeg命令（无转码，仅切片）
+	// 构建FFmpeg命令（优化版：源校准+规范切片+音视频对齐+批量处理优化）
+	// 构建FFmpeg命令（无转码仅切片，适配2025最新版FFmpeg，修复-sync参数报错）
 	cmd := exec.Command(
 		"ffmpeg",
-		"-i", videoFilePath,
-		"-c:v", "copy", // 直接复制视频流，不转码
-		"-c:a", "copy", // 直接复制音频流，不转码
-		"-hls_time", "10",
-		"-hls_list_size", "0",
-		"-hls_segment_filename", segmentPath,
-		playlistPath,
+		"-err_detect", "ignore_err", // 忽略源视频轻微格式错误
+		"-i", videoFilePath, // 输入文件
+		"-c:v", "copy", // 视频流复制，不转码
+		"-c:a", "copy", // 音频流复制，不转码
+		"-hls_time", "8", // 切片时长8s
+		"-hls_list_size", "0", // 保留所有切片
+		"-hls_segment_filename", segmentPath, // 切片路径模板
+		// 核心修复：移除弃用的split_on_keyframe，保留其他有效flag
+		"-hls_flags", "discont_start+temp_file+independent_segments",
+		"-avoid_negative_ts", "make_zero", // 时间戳从0开始
+		"-fflags", "+genpts+igndts", // 重生成时间戳，忽略DTS错误
+		"-reset_timestamps", "1", // 每个切片重置时间戳
+		"-loglevel", "error", // 仅输出错误日志
+		playlistPath, // 输出m3u8
 	)
 
 	// 执行命令
@@ -906,16 +914,24 @@ func generateHLSHighQuality(videoPath string) error {
 	videoFilePath = filepath.FromSlash(videoFilePath)
 
 	// 构建FFmpeg命令（使用GPU加速，无转码）
+	// 构建FFmpeg命令（优化版：源校准+规范切片+音视频对齐+批量处理优化）
+	// 构建FFmpeg命令（无转码仅切片，适配2025最新版FFmpeg，修复-sync参数报错）
 	cmd := exec.Command(
 		"ffmpeg",
-		"-hwaccel", "cuda", // 使用GPU硬件加速
-		"-i", videoFilePath,
-		"-c:v", "copy", // 直接复制视频流，不转码
-		"-c:a", "copy", // 直接复制音频流，不转码
-		"-hls_time", "10",
-		"-hls_list_size", "0",
-		"-hls_segment_filename", segmentPath,
-		playlistPath,
+		"-err_detect", "ignore_err", // 忽略源视频轻微格式错误
+		"-i", videoFilePath, // 输入文件
+		"-c:v", "copy", // 视频流复制，不转码
+		"-c:a", "copy", // 音频流复制，不转码
+		"-hls_time", "8", // 切片时长8s
+		"-hls_list_size", "0", // 保留所有切片
+		"-hls_segment_filename", segmentPath, // 切片路径模板
+		// 核心修复：移除弃用的split_on_keyframe，保留其他有效flag
+		"-hls_flags", "discont_start+temp_file+independent_segments",
+		"-avoid_negative_ts", "make_zero", // 时间戳从0开始
+		"-fflags", "+genpts+igndts", // 重生成时间戳，忽略DTS错误
+		"-reset_timestamps", "1", // 每个切片重置时间戳
+		"-loglevel", "error", // 仅输出错误日志
+		playlistPath, // 输出m3u8
 	)
 
 	// 执行命令
@@ -1275,6 +1291,12 @@ func historyHandler(c *gin.Context) {
 func hlsHandler(c *gin.Context) {
 	// 渲染模板
 	c.HTML(http.StatusOK, "hls.html", gin.H{})
+}
+
+// HLS修复工具页面处理函数
+func hlsFixPageHandler(c *gin.Context) {
+	// 渲染模板
+	c.HTML(http.StatusOK, "hls_fix.html", gin.H{})
 }
 
 // 视频列表API路由
@@ -1906,6 +1928,9 @@ func main() {
 	// 动画管理相关API
 	r.GET("/api/animes/search", searchAnimesHandler)
 	r.DELETE("/api/animes/delete", deleteAnimeHandler)
+	r.POST("/api/hls/fix", fixHLSVideosHandler)
+	r.GET("/api/hls/fix", fixHLSVideosHandler)
+	r.GET("/hls-fix", hlsFixPageHandler)
 
 	// 启动服务器
 	port := config.Server.Port
