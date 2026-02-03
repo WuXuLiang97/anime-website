@@ -1868,6 +1868,21 @@ func deleteAnimeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
+// 扫描视频API
+func scanVideosHandler(c *gin.Context) {
+	// 异步扫描视频
+	go func() {
+		logger.Println("开始异步同步本地动画到数据库...")
+		animes := scanVideos()
+		logger.Printf("异步同步本地动画到数据库完成！扫描到 %d 个动画\n", len(animes))
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "开始扫描视频，请等待完成",
+	})
+}
+
 // 主函数
 func main() {
 	// 初始化日志
@@ -1916,6 +1931,7 @@ func main() {
 	r.GET("/history", historyHandler)
 	r.GET("/hls", hlsHandler)
 	r.GET("/api/videos", videoListHandler)
+	r.POST("/api/scan-videos", scanVideosHandler)
 	r.POST("/api/batch-hls", batchHLSHandler)
 	r.POST("/api/batch-hls/stop", stopBatchHLSHandler)
 	// 播放记录相关API

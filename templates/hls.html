@@ -239,6 +239,7 @@
           </div>
           <button id="startBtn" class="btn">开始批量生成HLS切片</button>
           <button id="stopBtn" class="btn" disabled>停止处理</button>
+          <button id="scanBtn" class="btn" style="margin-left: 10px;">扫描视频</button>
         </section>
 
         <section class="progress-section">
@@ -306,6 +307,7 @@
       // DOM元素
       const startBtn = document.getElementById('startBtn');
       const stopBtn = document.getElementById('stopBtn');
+      const scanBtn = document.getElementById('scanBtn');
       const useGPUCheckbox = document.getElementById('useGPU');
       const progressFill = document.querySelector('.progress-fill');
       const progressCurrent = document.getElementById('progressCurrent');
@@ -523,6 +525,34 @@
         addLog('处理已停止');
       }
 
+      // 扫描视频
+      function scanVideos() {
+        addLog('正在扫描视频...');
+        scanBtn.disabled = true;
+
+        // 发送扫描请求到服务器
+        fetch('/api/scan-videos', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            addLog(`扫描完成: ${data.message}`, 'success');
+          } else {
+            addLog(`扫描失败: ${data.error || '未知错误'}`, 'error');
+          }
+        })
+        .catch(error => {
+          addLog(`发送扫描请求失败: ${error.message}`, 'error');
+        })
+        .finally(() => {
+          scanBtn.disabled = false;
+        });
+      }
+
       // 搜索和删除功能
       const searchInput = document.getElementById('searchInput');
       const searchBtn = document.getElementById('searchBtn');
@@ -620,6 +650,7 @@
       // 事件监听
       startBtn.addEventListener('click', startProcessing);
       stopBtn.addEventListener('click', stopProcessing);
+      scanBtn.addEventListener('click', scanVideos);
       searchBtn.addEventListener('click', searchAnimes);
       searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
