@@ -12,11 +12,110 @@ body {
   line-height: 1.6;
 }
 
+/* 哔哩哔哩风格头部样式 */
+.bili-header {
+  position: relative;
+  width: 100%;
+  background: #F5F5F1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.bili-header .bili-header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  max-width: 1200px;
+  width: 100%;
+  height: 64px;
+  margin: 0 auto;
+  flex-wrap: nowrap;
+}
+
+.bili-header .left-entry {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 20px;
+}
+
+.bili-header .right-entry {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 20px;
+}
+
+.bili-header .search-form {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.bili-header .search-box {
+  width: 100%;
+  max-width: 400px;
+}
+
+.bili-header .search-form input {
+  padding: 10px 15px;
+  font-size: 1rem;
+}
+
+.bili-header .search-btn {
+  padding: 10px 20px;
+  font-size: 1rem;
+}
+
+.bili-header .entry-title {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.bili-header .bili-logo {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.bili-header .default-entry {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.bili-header .left-entry li {
+  list-style: none;
+}
+
+.bili-header .bili-header__nav-link {
+  text-decoration: none;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0 12px;
+}
+
+.bili-header .right-entry li {
+  list-style: none;
+}
+
+
+
 .container {
   max-width: 1920px; /* 放大最大宽度，适配160px左右边距的宽屏 */
   margin: 0 auto;
   padding: 20px 160px; /* 核心修改：上下20px，左右160px间距 */
   width: 100%; /* 占满可用宽度 */
+  background: white;
 }
 
 /* 头部样式 */
@@ -818,6 +917,7 @@ body {
   margin: 0 auto;
   padding: 10px 0px; /* 核心修改：上下20px，左右160px间距 */
   width: 100%; /* 占满可用宽度 */
+  background: white;
   }
   .result-card {
     flex-direction: column;
@@ -851,6 +951,8 @@ body {
   color: #7f8c8d;
   font-size: 0.9rem;
 }
+
+
 
 /* 响应式适配 */
 @media (max-width: 768px) {

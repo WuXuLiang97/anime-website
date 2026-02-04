@@ -1,150 +1,165 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>动画视频网站 - 首页</title>
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="/static/css/style.css" />
-    <style>
-      /* 查看更多按钮样式 */
-      .more-section {
-        display: flex;
-        justify-content: center;
-        margin-top: 20px;
-      }
-      .more-btn {
-        background-color: #4285f4;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 10px 20px;
-        font-size: 14px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        transition: background-color 0.3s ease;
-      }
-      .more-btn:hover {
-        background-color: #3367d6;
-      }
-      .more-icon {
-        transition: transform 0.3s ease;
-      }
-      .more-btn:hover .more-icon {
-        transform: translateY(2px);
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <header class="site-header">
-        <div class="header-top">
-          <h1>我的动画网站</h1>
-          <nav class="header-nav">
-            <a href="/history" class="nav-link">播放记录</a>
-          </nav>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>动画视频网站 - 首页</title>
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* 查看更多按钮样式 */
+    .more-section {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .more-btn {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.3s ease;
+    }
+
+    .more-btn:hover {
+      background-color: #3367d6;
+    }
+
+    .more-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .more-btn:hover .more-icon {
+      transform: translateY(2px);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bili-header">
+    <div class="bili-header__bar">
+      <ul class="left-entry">
+        <li>
+          <a href="/" class="entry-title"> <img src="static/1.bmp" class="bili-logo">首页</a>
+        </li>
+        <li class="v-popover-wrap">
+          <a href="/hls" class="default-entry">HLS切片</a>
+        </li>
+
+      </ul>
+      <form action="/search" method="get" class="search-form">
+        <div class="search-box">
+          <input type="text" name="keyword" id="search-input" placeholder="输入动画名称搜索（如：海贼王、火影忍者）..." required
+            autocomplete="off" />
+          <button type="submit" class="search-btn">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            搜索
+          </button>
         </div>
-        <p>海量动画资源，一键搜索播放</p>
-        <section class="search-section">
-          <form action="/search" method="get" class="search-form">
-            <div class="search-box">
-              <input
-                type="text"
-                name="keyword"
-                id="search-input"
-                placeholder="输入动画名称搜索（如：海贼王、火影忍者）..."
-                required
-                autocomplete="off"
-              />
-              <button type="submit" class="search-btn">
-                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                搜索
-              </button>
-            </div>
-            <!-- 搜索建议区域 -->
-            <div id="search-suggestions" class="search-suggestions"></div>
-          </form>
-        </section>
-      </header>
+        <!-- 搜索建议区域 -->
+        <div id="search-suggestions" class="search-suggestions"></div>
+      </form>
+      <ul class="right-entry">
+        <li>
+          <a href="/history" class="bili-header__nav-link">播放记录</a>
+        </li>
+      </ul>
 
-      <main class="main-content">
-
-        <section class="anime-section">
-          <h2>最新动画</h2>
-          <div class="anime-grid">
-            {{range .Animes}}
-            <div class="anime-card">
-              <a href="/play?video={{.VideoURL}}&title={{.Title}}&summary={{.Summary}}&keyword={{.FolderName}}" class="anime-link">
-                <div class="anime-cover">
-                  <img src="{{.Cover}}" alt="{{.Title}}" onerror="this.src='/static/css/default-cover.jpg'">
-                  <div class="episode-badge">{{.Episodes}}集</div>
-                </div>
-              </a>
-              <a href="/play?video={{.VideoURL}}&title={{.Title}}&summary={{.Summary}}&keyword={{.FolderName}}" class="anime-title-link">
-                <div class="anime-card-title">{{.Title}}</div>
-              </a>
-            </div>
-            {{else}}
-            <div class="no-anime">
-              <p>暂无动画资源，请添加视频文件到 static/videos/ 目录</p>
-            </div>
-            {{end}}
-          </div>
-          <!-- 查看更多/收起按钮 -->
-          <div class="more-section">
-            {{if .Animes}}
-              {{if not .ShowAll}}
-                <!-- 只有当总动画数大于10个时，才显示"查看更多"按钮 -->
-                {{if gt .TotalAnimes 10}}
-                  <button id="show-more-btn" class="more-btn">
-                    查看更多
-                    <svg class="more-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </button>
-                {{end}}
-              {{else}}
-                <!-- 显示全部时，始终显示"收起"按钮 -->
-                <button id="show-less-btn" class="more-btn">
-                  收起
-                  <svg class="more-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                  </svg>
-                </button>
-              {{end}}
-            {{end}}
-          </div>
-        </section>
-      </main>
-
-      <footer class="site-footer">
-        <p>© 2026 动画视频网站 | 本网站仅用于学习交流</p>
-      </footer>
     </div>
-    
-    <script>
-      // 处理查看更多按钮点击事件
-      const showMoreBtn = document.getElementById('show-more-btn');
-      if (showMoreBtn) {
-        showMoreBtn.addEventListener('click', () => {
-          // 跳转到带showAll=true参数的首页
-          window.location.href = '/?showAll=true';
-        });
-      }
-      
-      // 处理收起按钮点击事件
-      const showLessBtn = document.getElementById('show-less-btn');
-      if (showLessBtn) {
-        showLessBtn.addEventListener('click', () => {
-          // 跳转到不带showAll参数的首页
-          window.location.href = '/';
-        });
-      }
-    </script>
-  </body>
+
+
+
+  </div>
+  <div class="container">
+    <main class="main-content">
+      <section class="anime-section">
+        <h2>最新动画</h2>
+        <div class="anime-grid">
+          {{range .Animes}}
+          <div class="anime-card">
+            <a href="/play?video={{.VideoURL}}&title={{.Title}}&summary={{.Summary}}&keyword={{.FolderName}}"
+              class="anime-link">
+              <div class="anime-cover">
+                <img src="{{.Cover}}" alt="{{.Title}}" onerror="this.src='/static/css/default-cover.jpg'">
+                <div class="episode-badge">{{.Episodes}}集</div>
+              </div>
+            </a>
+            <a href="/play?video={{.VideoURL}}&title={{.Title}}&summary={{.Summary}}&keyword={{.FolderName}}"
+              class="anime-title-link">
+              <div class="anime-card-title">{{.Title}}</div>
+            </a>
+          </div>
+          {{else}}
+          <div class="no-anime">
+            <p>暂无动画资源，请添加视频文件到 static/videos/ 目录</p>
+          </div>
+          {{end}}
+        </div>
+        <!-- 查看更多/收起按钮 -->
+        <div class="more-section">
+          {{if .Animes}}
+          {{if not .ShowAll}}
+          <!-- 只有当总动画数大于10个时，才显示"查看更多"按钮 -->
+          {{if gt .TotalAnimes 10}}
+          <button id="show-more-btn" class="more-btn">
+            查看更多
+            <svg class="more-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          {{end}}
+          {{else}}
+          <!-- 显示全部时，始终显示"收起"按钮 -->
+          <button id="show-less-btn" class="more-btn">
+            收起
+            <svg class="more-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+          {{end}}
+          {{end}}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 动画视频网站 | 本网站仅用于学习交流</p>
+    </footer>
+  </div>
+
+  <script>
+    // 处理查看更多按钮点击事件
+    const showMoreBtn = document.getElementById('show-more-btn');
+    if (showMoreBtn) {
+      showMoreBtn.addEventListener('click', () => {
+        // 跳转到带showAll=true参数的首页
+        window.location.href = '/?showAll=true';
+      });
+    }
+
+    // 处理收起按钮点击事件
+    const showLessBtn = document.getElementById('show-less-btn');
+    if (showLessBtn) {
+      showLessBtn.addEventListener('click', () => {
+        // 跳转到不带showAll参数的首页
+        window.location.href = '/';
+      });
+    }
+  </script>
+</body>
+
 </html>
