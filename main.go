@@ -41,9 +41,20 @@ type LogConfig struct {
 	Level string `json:"level"`
 }
 
+// 用户结构体
+type User struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Username  string    `gorm:"size:100;uniqueIndex" json:"username"` // 用户名
+	Email     string    `gorm:"size:100;uniqueIndex" json:"email"`    // 邮箱
+	Password  string    `gorm:"size:100" json:"-"`                    // 密码（不返回给前端）
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // 播放记录结构体
 type PlayHistory struct {
 	ID            uint      `gorm:"primaryKey" json:"id"`
+	UserID        uint      `gorm:"index" json:"userId"`           // 用户ID，关联到User表
 	VideoID       string    `gorm:"size:255;index" json:"videoId"` // 视频唯一标识（如视频文件路径）
 	AnimeTitle    string    `gorm:"size:255" json:"animeTitle"`    // 动画标题
 	Episode       string    `gorm:"size:255" json:"episode"`       // 集数名称
@@ -186,7 +197,7 @@ func initDB() {
 	}
 
 	// 自动迁移表结构
-	err = db.AutoMigrate(&AnimeInfo{}, &PlayHistory{})
+	err = db.AutoMigrate(&User{}, &AnimeInfo{}, &PlayHistory{})
 	if err != nil {
 		logger.Printf("错误: 数据库迁移失败: %v\n", err)
 		localMode = true
@@ -1299,6 +1310,18 @@ func hlsFixPageHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "hls_fix.html", gin.H{})
 }
 
+// 登录页面处理函数
+func loginPageHandler(c *gin.Context) {
+	// 渲染模板
+	c.HTML(http.StatusOK, "login.html", gin.H{})
+}
+
+// 注册页面处理函数
+func registerPageHandler(c *gin.Context) {
+	// 渲染模板
+	c.HTML(http.StatusOK, "register.html", gin.H{})
+}
+
 // 视频列表API路由
 func videoListHandler(c *gin.Context) {
 	// 扫描所有视频
@@ -1540,6 +1563,28 @@ func savePlayHistoryHandler(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户ID
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 获取用户ID
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
 	// 计算进度百分比
 	if req.Duration > 0 {
 		req.Progress = (req.CurrentTime / req.Duration) * 100
@@ -1556,7 +1601,7 @@ func savePlayHistoryHandler(c *gin.Context) {
 	// 保存到数据库
 	if !localMode && db != nil {
 		var history PlayHistory
-		result := db.Where("video_id = ?", req.VideoID).First(&history)
+		result := db.Where("video_id = ? AND user_id = ?", req.VideoID, uint(userID)).First(&history)
 
 		if result.Error == nil {
 			// 更新现有记录
@@ -1575,6 +1620,7 @@ func savePlayHistoryHandler(c *gin.Context) {
 		} else if result.Error == gorm.ErrRecordNotFound {
 			// 创建新记录
 			history = PlayHistory{
+				UserID:        uint(userID),
 				VideoID:       req.VideoID,
 				AnimeTitle:    req.AnimeTitle,
 				Episode:       req.Episode,
@@ -1597,7 +1643,9 @@ func savePlayHistoryHandler(c *gin.Context) {
 		historyMu.Lock()
 		defer historyMu.Unlock()
 
-		existingHistory, exists := historyMap[req.VideoID]
+		// 使用用户ID和视频ID的组合作为键
+		historyKey := fmt.Sprintf("%d_%s", uint(userID), req.VideoID)
+		existingHistory, exists := historyMap[historyKey]
 		if exists {
 			// 更新现有记录
 			existingHistory.AnimeTitle = req.AnimeTitle
@@ -1610,10 +1658,11 @@ func savePlayHistoryHandler(c *gin.Context) {
 			existingHistory.SegmentID = req.SegmentID
 			existingHistory.SegmentOffset = req.SegmentOffset
 			existingHistory.UpdatedAt = time.Now()
-			historyMap[req.VideoID] = existingHistory
+			historyMap[historyKey] = existingHistory
 		} else {
 			// 创建新记录
-			historyMap[req.VideoID] = PlayHistory{
+			historyMap[historyKey] = PlayHistory{
+				UserID:        uint(userID),
 				VideoID:       req.VideoID,
 				AnimeTitle:    req.AnimeTitle,
 				Episode:       req.Episode,
@@ -1648,10 +1697,32 @@ func getPlayHistoryHandler(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户ID
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 获取用户ID
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
 	var history PlayHistory
 
 	if !localMode && db != nil {
-		result := db.Where("video_id = ?", videoId).First(&history)
+		result := db.Where("video_id = ? AND user_id = ?", videoId, uint(userID)).First(&history)
 		if result.Error != nil {
 			if result.Error == gorm.ErrRecordNotFound {
 				// 无记录则返回默认值
@@ -1671,7 +1742,8 @@ func getPlayHistoryHandler(c *gin.Context) {
 	} else {
 		// 使用内存存储（本地模式）
 		historyMu.Lock()
-		existingHistory, exists := historyMap[videoId]
+		historyKey := fmt.Sprintf("%d_%s", uint(userID), videoId)
+		existingHistory, exists := historyMap[historyKey]
 		historyMu.Unlock()
 
 		if !exists {
@@ -1705,11 +1777,33 @@ func getPlayHistoryHandler(c *gin.Context) {
 
 // 获取所有播放记录API
 func getAllPlayHistoryHandler(c *gin.Context) {
+	// 获取当前用户ID
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 获取用户ID
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
 	var histories []PlayHistory
 
 	if !localMode && db != nil {
-		// 按最后播放时间降序排列
-		result := db.Order("last_played DESC").Find(&histories)
+		// 按最后播放时间降序排列，只获取当前用户的记录
+		result := db.Where("user_id = ?", uint(userID)).Order("last_played DESC").Find(&histories)
 		if result.Error != nil {
 			logger.Printf("错误: 获取所有播放记录失败: %v\n", result.Error)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
@@ -1721,7 +1815,10 @@ func getAllPlayHistoryHandler(c *gin.Context) {
 		defer historyMu.Unlock()
 
 		for _, history := range historyMap {
-			histories = append(histories, history)
+			// 检查记录是否属于当前用户
+			if history.UserID == uint(userID) {
+				histories = append(histories, history)
+			}
 		}
 	}
 
@@ -1767,8 +1864,30 @@ func deletePlayHistoryHandler(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户ID
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 获取用户ID
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
 	if !localMode && db != nil {
-		result := db.Where("video_id = ?", videoId).Delete(&PlayHistory{})
+		result := db.Where("video_id = ? AND user_id = ?", videoId, uint(userID)).Delete(&PlayHistory{})
 		if result.Error != nil {
 			logger.Printf("错误: 删除播放记录失败: %v\n", result.Error)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
@@ -1778,7 +1897,8 @@ func deletePlayHistoryHandler(c *gin.Context) {
 		// 使用内存存储（本地模式）
 		historyMu.Lock()
 		defer historyMu.Unlock()
-		delete(historyMap, videoId)
+		historyKey := fmt.Sprintf("%d_%s", uint(userID), videoId)
+		delete(historyMap, historyKey)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
@@ -1786,8 +1906,30 @@ func deletePlayHistoryHandler(c *gin.Context) {
 
 // 清除所有播放记录API
 func clearAllPlayHistoryHandler(c *gin.Context) {
+	// 获取当前用户ID
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 获取用户ID
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
 	if !localMode && db != nil {
-		result := db.Exec("DELETE FROM play_histories")
+		result := db.Where("user_id = ?", uint(userID)).Delete(&PlayHistory{})
 		if result.Error != nil {
 			logger.Printf("错误: 清除所有播放记录失败: %v\n", result.Error)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除失败"})
@@ -1797,10 +1939,168 @@ func clearAllPlayHistoryHandler(c *gin.Context) {
 		// 使用内存存储（本地模式）
 		historyMu.Lock()
 		defer historyMu.Unlock()
-		historyMap = make(map[string]PlayHistory)
+
+		// 只删除当前用户的记录
+		for key, history := range historyMap {
+			if history.UserID == uint(userID) {
+				delete(historyMap, key)
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
+// 用户注册API
+func registerHandler(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required,min=3,max=50"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误", "details": err.Error()})
+		return
+	}
+
+	// 检查用户名是否已存在
+	var existingUser User
+	result := db.Where("username = ?", req.Username).First(&existingUser)
+	if result.Error == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名已存在"})
+		return
+	}
+
+	// 检查邮箱是否已存在
+	result = db.Where("email = ?", req.Email).First(&existingUser)
+	if result.Error == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱已存在"})
+		return
+	}
+
+	// 创建新用户
+	user := User{
+		Username:  req.Username,
+		Email:     req.Email,
+		Password:  req.Password, // 实际应用中应该加密密码
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	result = db.Create(&user)
+	if result.Error != nil {
+		logger.Printf("错误: 创建用户失败: %v\n", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "注册成功",
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"email":    user.Email,
+		},
+	})
+}
+
+// 用户登录API
+func loginHandler(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误", "details": err.Error()})
+		return
+	}
+
+	// 查找用户
+	var user User
+	result := db.Where("username = ?", req.Username).First(&user)
+	if result.Error != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		return
+	}
+
+	// 验证密码
+	if user.Password != req.Password {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		return
+	}
+
+	// 设置用户信息到Cookie（简单实现，实际应用中应该加密）
+	userInfo := gin.H{
+		"id":       user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	}
+
+	// 将用户信息转换为JSON字符串
+	userJSON, err := json.Marshal(userInfo)
+	if err == nil {
+		// 设置Cookie，有效期为7天
+		c.SetCookie(
+			"user",
+			string(userJSON),
+			7*24*60*60, // 7天
+			"/",
+			"",
+			false,
+			true,
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "登录成功",
+		"user":    userInfo,
+	})
+}
+
+// 获取当前用户信息API
+func getCurrentUserHandler(c *gin.Context) {
+	// 从Cookie中获取用户信息
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析Cookie中的用户信息
+	var userInfo gin.H
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"user":   userInfo,
+	})
+}
+
+// 用户登出API
+func logoutHandler(c *gin.Context) {
+	// 清除Cookie
+	c.SetCookie(
+		"user",
+		"",
+		-1, // 设置为过期
+		"/",
+		"",
+		false,
+		true,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "登出成功",
+	})
 }
 
 // 搜索动画API
@@ -1941,12 +2241,20 @@ func main() {
 	r.DELETE("/api/play-history/delete", deletePlayHistoryHandler)
 	r.DELETE("/api/play-history/clear", clearAllPlayHistoryHandler)
 
+	// 用户相关API
+	r.POST("/api/auth/register", registerHandler)
+	r.POST("/api/auth/login", loginHandler)
+	r.GET("/api/auth/user", getCurrentUserHandler)
+	r.POST("/api/auth/logout", logoutHandler)
+
 	// 动画管理相关API
 	r.GET("/api/animes/search", searchAnimesHandler)
 	r.DELETE("/api/animes/delete", deleteAnimeHandler)
 	r.POST("/api/hls/fix", fixHLSVideosHandler)
 	r.GET("/api/hls/fix", fixHLSVideosHandler)
 	r.GET("/hls-fix", hlsFixPageHandler)
+	r.GET("/login", loginPageHandler)
+	r.GET("/register", registerPageHandler)
 
 	// 启动服务器
 	port := config.Server.Port

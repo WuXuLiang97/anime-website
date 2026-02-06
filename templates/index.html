@@ -71,9 +71,15 @@
         <!-- 搜索建议区域 -->
         <div id="search-suggestions" class="search-suggestions"></div>
       </form>
-      <ul class="right-entry">
+      <ul class="right-entry" id="user-nav">
         <li>
           <a href="/history" class="bili-header__nav-link">播放记录</a>
+        </li>
+        <li>
+          <a href="/login" class="bili-header__nav-link">登录</a>
+        </li>
+        <li>
+          <a href="/register" class="bili-header__nav-link">注册</a>
         </li>
       </ul>
 
@@ -142,6 +148,65 @@
   </div>
 
   <script>
+    // 检测用户登录状态
+    async function checkLoginStatus() {
+      try {
+        const response = await fetch('/api/auth/user', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'success' && data.user) {
+            updateNavForLoggedInUser(data.user);
+          }
+        }
+      } catch (error) {
+        console.error('检查登录状态失败:', error);
+      }
+    }
+
+    // 更新登录状态的导航栏
+    function updateNavForLoggedInUser(user) {
+      const userNav = document.getElementById('user-nav');
+      if (userNav) {
+        userNav.innerHTML = `
+          <li>
+            <a href="/history" class="bili-header__nav-link">播放记录</a>
+          </li>
+          <li class="user-profile">
+            <span class="bili-header__nav-link">欢迎，${user.username}</span>
+          </li>
+          <li>
+            <a href="#" id="logout-btn" class="bili-header__nav-link">登出</a>
+          </li>
+        `;
+
+        // 添加登出按钮事件
+        document.getElementById('logout-btn').addEventListener('click', async function(e) {
+          e.preventDefault();
+          try {
+            const response = await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (response.ok) {
+              // 登出成功，刷新页面
+              window.location.reload();
+            }
+          } catch (error) {
+            console.error('登出失败:', error);
+          }
+        });
+      }
+    }
+
     // 处理查看更多按钮点击事件
     const showMoreBtn = document.getElementById('show-more-btn');
     if (showMoreBtn) {
@@ -159,6 +224,9 @@
         window.location.href = '/';
       });
     }
+
+    // 页面加载时检查登录状态
+    window.addEventListener('DOMContentLoaded', checkLoginStatus);
   </script>
 </body>
 
