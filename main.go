@@ -2103,6 +2103,65 @@ func logoutHandler(c *gin.Context) {
 	})
 }
 
+// Cookie自动续签API
+func renewCookieHandler(c *gin.Context) {
+	// 从Cookie中获取用户信息
+	userCookie, err := c.Cookie("user")
+	if err != nil || userCookie == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 解析用户信息
+	var userInfo map[string]interface{}
+	err = json.Unmarshal([]byte(userCookie), &userInfo)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	// 验证用户是否存在
+	userID, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	var user User
+	result := db.First(&user, uint(userID))
+	if result.Error != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 重新设置Cookie，延长有效期
+	newUserInfo := gin.H{
+		"id":       user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	}
+
+	newUserJSON, err := json.Marshal(newUserInfo)
+	if err == nil {
+		// 设置Cookie，有效期为7天
+		c.SetCookie(
+			"user",
+			string(newUserJSON),
+			7*24*60*60, // 7天
+			"/",
+			"",
+			false,
+			true,
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Cookie续签成功",
+		"user":    newUserInfo,
+	})
+}
+
 // 搜索动画API
 func searchAnimesHandler(c *gin.Context) {
 	keyword := c.Query("keyword")
@@ -2246,6 +2305,7 @@ func main() {
 	r.POST("/api/auth/login", loginHandler)
 	r.GET("/api/auth/user", getCurrentUserHandler)
 	r.POST("/api/auth/logout", logoutHandler)
+	r.POST("/api/auth/renew", renewCookieHandler)
 
 	// 动画管理相关API
 	r.GET("/api/animes/search", searchAnimesHandler)

@@ -225,8 +225,59 @@
       });
     }
 
+    // Cookie自动续签功能
+    function renewCookie() {
+      fetch('/api/auth/renew', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // 包含Cookie
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          console.log('Cookie续签成功');
+        }
+      })
+      .catch(error => {
+        console.error('Cookie续签失败:', error);
+      });
+    }
+
+    // 定期检查Cookie过期时间并续签
+    function checkAndRenewCookie() {
+      // 获取用户Cookie
+      const userCookie = document.cookie.split('; ').find(row => row.startsWith('user='));
+      if (userCookie) {
+        // 这里简化处理，实际项目中可以解析Cookie的过期时间
+        // 每30分钟续签一次
+        renewCookie();
+      }
+    }
+
     // 页面加载时检查登录状态
     window.addEventListener('DOMContentLoaded', checkLoginStatus);
+
+    // 每30分钟自动续签Cookie
+    setInterval(checkAndRenewCookie, 30 * 60 * 1000);
+
+    // 当用户有活动时，也触发续签检查
+    document.addEventListener('mousemove', function() {
+      // 防抖处理，避免频繁触发
+      if (!window.lastActivityCheck || Date.now() - window.lastActivityCheck > 5 * 60 * 1000) {
+        checkAndRenewCookie();
+        window.lastActivityCheck = Date.now();
+      }
+    });
+
+    document.addEventListener('keypress', function() {
+      // 防抖处理，避免频繁触发
+      if (!window.lastActivityCheck || Date.now() - window.lastActivityCheck > 5 * 60 * 1000) {
+        checkAndRenewCookie();
+        window.lastActivityCheck = Date.now();
+      }
+    });
   </script>
 </body>
 
