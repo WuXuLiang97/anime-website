@@ -7,8 +7,8 @@
 }
 
 body {
-  background-color: #f5f7fa;
-  color: #333;
+  background-color: #FFFFFF;
+  color: #D24D5C;
   line-height: 1.6;
 }
 
@@ -16,9 +16,10 @@ body {
 .bili-header {
   position: relative;
   width: 100%;
-  background: #F5F5F1;
+  background: #D24D5C;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-bottom: 20px;
+  color: #FFFFFF;
 }
 
 .bili-header .bili-header__bar {
@@ -72,7 +73,7 @@ body {
   display: flex;
   align-items: center;
   text-decoration: none;
-  color: #333;
+  color: #FFFFFF;
   font-size: 1rem;
   font-weight: 500;
   margin-right: 8px;
@@ -86,7 +87,7 @@ body {
   display: flex;
   align-items: center;
   text-decoration: none;
-  color: #333;
+  color: #FFFFFF;
   font-size: 1rem;
   font-weight: 500;
   margin-right: 8px;
@@ -98,7 +99,7 @@ body {
 
 .bili-header .bili-header__nav-link {
   text-decoration: none;
-  color: #333;
+  color: #FFFFFF;
   font-size: 1rem;
   font-weight: 500;
   padding: 0 12px;
@@ -259,7 +260,7 @@ body {
   border: none;
   outline: none;
   background: transparent;
-  color: #333;
+  color: #D24D5C;
 }
 
 .search-form input::placeholder {
@@ -271,8 +272,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 18px 35px;
-  background: linear-gradient(135deg, #3498db, #2980b9);
-  color: #fff;
+  background: linear-gradient(135deg, #D24D5C, #ECAEB9);
+  color: #FFFFFF;
   border: none;
   border-radius: 30px;
   font-size: 1.1rem;
@@ -283,7 +284,7 @@ body {
 }
 
 .search-btn:hover {
-  background: linear-gradient(135deg, #2980b9, #21618c);
+  background: linear-gradient(135deg, #f4796a, #efeec6);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
 }
@@ -400,11 +401,44 @@ body {
 
 .anime-section h2 {
   font-size: 1.8rem;
-  color: #2c3e50;
+  color: #D24D5C;
   margin-bottom: 25px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #3498db;
+  border-bottom: 2px solid #ECAEB9;
 }
+
+/* 查看更多按钮样式 */
+    .more-section {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .more-btn {
+      background-color: #D24D5C;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.3s ease;
+    }
+
+    .more-btn:hover {
+      background-color: #ECAEB9;
+    }
+
+    .more-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .more-btn:hover .more-icon {
+      transform: translateY(2px);
+    }
 
 /* 动画网格样式 */
 .anime-grid {
@@ -419,9 +453,7 @@ body {
 /* 动画卡片样式 */
 .anime-card {
   background: #fff !important;
-  border-radius: 12px !important;
   overflow: hidden !important;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
   transition: all 0.3s ease !important;
   width: 100% !important;
   max-width: none !important;
@@ -435,7 +467,6 @@ body {
 
 .anime-card:hover {
   transform: translateY(-5px) !important;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* 动画封面样式 */
@@ -445,7 +476,7 @@ body {
   width: 100%;
   height: 198px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 12px 12px 0 0;
+  border-radius: 8px !important;
 }
 
 .anime-cover img {
@@ -459,6 +490,7 @@ body {
   max-width: 100% !important;
   max-height: 198px !important;
   display: block !important;
+   
 }
 
 .anime-card:hover .anime-cover img {
@@ -522,15 +554,13 @@ body {
 /* 动画标题链接样式 */
 .anime-title-link {
   text-decoration: none;
-  color: #333;
   display: block;
-  padding: 15px;
 }
 
 /* 动画卡片标题样式 */
 .anime-card-title {
   font-size: 1.1rem;
-  color: #2c3e50;
+  color: #D24D5C;
   text-align: center;
   line-height: 1.4;
   transition: color 0.3s ease;
@@ -544,7 +574,7 @@ body {
 }
 
 .anime-card:hover .anime-card-title {
-  color: #3498db;
+  color: #f4796a;
 }
 
 /* 无动画样式 */
@@ -834,7 +864,7 @@ body {
 }
 
 .episode-btn:hover {
-  background: #3498db;
+  background: #D24D5C;
   color: #fff;
   transform: translateY(-1px);
 }
