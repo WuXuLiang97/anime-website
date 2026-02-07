@@ -209,6 +209,7 @@
 
     .anime-info {
       flex: 1;
+      color: #D24D5C;
     }
 
     .result-item:last-child {
@@ -314,7 +315,7 @@
         </div>
       </section>
       <h2>动画管理</h2>
-      <form action="/search" method="get" class="search-form">
+      <form class="search-form">
         <div class="search-box">
           <input type="text" id="searchInput" placeholder="输入动画名称搜索（如：海贼王、火影忍者）...">
           <button class="search-btn" id="searchBtn">
@@ -700,9 +701,13 @@
       startBtn.addEventListener('click', startProcessing);
       stopBtn.addEventListener('click', stopProcessing);
       scanBtn.addEventListener('click', scanVideos);
-      searchBtn.addEventListener('click', searchAnimes);
+      searchBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        searchAnimes();
+      });
       searchInput.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
+          e.preventDefault();
           searchAnimes();
         }
       });
