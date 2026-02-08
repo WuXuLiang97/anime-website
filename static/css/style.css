@@ -79,7 +79,6 @@ body {
   margin-right: 8px;
 }
 
-
 .bili-header .bili-logo {
   margin-right: 8px;
   vertical-align: middle;
@@ -111,16 +110,12 @@ body {
   list-style: none;
 }
 
-
-
+/* 容器样式 */
 .container {
   max-width: 1920px;
-  /* 放大最大宽度，适配160px左右边距的宽屏 */
   margin: 0 auto;
   padding: 20px 80px;
-  /* 核心修改：上下20px，左右160px间距 */
   width: 100%;
-  /* 占满可用宽度 */
 }
 
 /* 头部样式 */
@@ -197,6 +192,7 @@ body {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* 返回按钮样式 */
 .back-btn {
   display: inline-block;
   position: relative;
@@ -390,14 +386,6 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 动画列表样式 */
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 25px;
-  margin-top: 20px;
-}
-
 /* 动画区域样式 */
 .anime-section {
   margin-top: 40px;
@@ -494,7 +482,6 @@ body {
   max-width: 100% !important;
   max-height: 198px !important;
   display: block !important;
-
 }
 
 .anime-card:hover .anime-cover img {
@@ -505,16 +492,12 @@ body {
 .episode-badge {
   position: absolute;
   top: 8px;
-  /* 原有10px，略减 */
   left: 8px;
-  /* 原有10px，略减 */
   background: rgba(255, 107, 107, 0.9);
   color: #fff;
   padding: 4px 8px;
-  /* 原有6px 12px，略减 */
   border-radius: 20px;
   font-size: 0.8rem;
-  /* 原有0.85rem，略减 */
   font-weight: 600;
   z-index: 2;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -527,36 +510,6 @@ body {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-/* 搜索结果卡片样式 */
-.search-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  height: auto !important;
-  background: #fff;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
-}
-
-.search-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-}
-
-.search-card .cover-img {
-  width: 100%;
-  height: 198px;
-  object-fit: cover;
-  position: static !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-}
-
-.search-card .card-content {
-  padding: 20px;
 }
 
 /* 动画标题链接样式 */
@@ -601,14 +554,7 @@ body {
   margin: 0;
 }
 
-/* 动画链接样式 */
-.anime-link {
-  text-decoration: none;
-  color: inherit;
-  display: block;
-}
-
-
+/* 摘要样式 */
 .summary {
   color: #555;
   font-size: 0.95rem;
@@ -624,6 +570,7 @@ body {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
+  gap: 10px;
 }
 
 .play-btn {
@@ -665,17 +612,22 @@ body {
 
 .episode-btn {
   display: inline-block;
-  padding: 6px 12px;
-  margin: 0 5px 8px 0;
-  background-color: #2ecc71;
-  color: #fff;
+  padding: 8px 16px;
+  background: #f0f2f5;
+  color: #333;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 20px;
   font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  margin: 0 5px 8px 0;
 }
 
 .episode-btn:hover {
-  background-color: #27ae60;
+  background: #D24D5C;
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 /* 搜索结果头部样式 */
@@ -749,22 +701,9 @@ body {
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease;
-  /* 限制图片最大尺寸，确保性能和显示效果 */
   max-width: 100%;
   max-height: 100%;
-  /* 确保图片加载时不会导致布局跳动 */
   display: block;
-}
-
-/* 首页动画封面样式优化 */
-.anime-cover img {
-  width: 100% !important;
-  height: 198px !important;
-  object-fit: cover !important;
-  transition: transform 0.4s ease !important;
-  max-width: 100% !important;
-  max-height: 198px !important;
-  display: block !important;
 }
 
 .result-card:hover .result-cover img {
@@ -858,25 +797,6 @@ body {
   gap: 8px;
 }
 
-.episode-btn {
-  display: inline-block;
-  padding: 8px 16px;
-  background: #f0f2f5;
-  color: #333;
-  text-decoration: none;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-}
-
-.episode-btn:hover {
-  background: #D24D5C;
-  color: #fff;
-  transform: translateY(-1px);
-}
-
 .no-episodes {
   color: #e74c3c;
   font-size: 0.9rem;
@@ -912,15 +832,6 @@ body {
   margin-right: auto;
 }
 
-.no-result-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
 .home-btn {
   display: inline-block;
   padding: 12px 30px;
@@ -949,6 +860,7 @@ body {
   border: 1px solid #e0e0e0;
 }
 
+/* 历史记录样式 */
 .history-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -968,12 +880,6 @@ body {
   font-size: 24px;
   font-weight: bold;
   color: #FFFFFF;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .btn {
@@ -1152,14 +1058,22 @@ body {
   color: #666;
 }
 
-/* 响应式适配 - 768px以下，保持图片高度198px */
+/* 页脚样式 */
+.site-footer {
+  text-align: center;
+  margin-top: 50px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+/* 响应式适配 */
 @media (max-width: 768px) {
   .container {
     margin: 0 auto;
     padding: 10px 0px;
-    /* 核心修改：上下20px，左右160px间距 */
     width: 100%;
-    /* 占满可用宽度 */
     background: white;
   }
 
@@ -1227,17 +1141,14 @@ body {
 
   .result-card-left {
     width: 148px;
-    /* 新增：移动端也保持148px宽度，可居中 */
     margin: 0 auto;
-    /* 新增：移动端图片居中显示 */
   }
 
   .result-cover {
     height: 198px;
-    /* 替换原有220px，统一高度 */
   }
 
-  /* 原有其他样式保留，不用动 */
+  /* 搜索区域响应式 */
   .search-section {
     padding: 40px 20px;
   }
@@ -1245,22 +1156,8 @@ body {
   .search-result-info h1 {
     font-size: 1.5rem;
   }
-}
 
-/* 页脚样式 */
-.site-footer {
-  text-align: center;
-  margin-top: 50px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-  color: #7f8c8d;
-  font-size: 0.9rem;
-}
-
-
-
-/* 响应式适配 */
-@media (max-width: 768px) {
+  /* 头部响应式 */
   .site-header h1 {
     font-size: 2rem;
   }
@@ -1274,10 +1171,7 @@ body {
     margin-right: auto;
   }
 
-  .card-grid {
-    grid-template-columns: 1fr;
-  }
-
+  /* 搜索表单响应式 */
   .search-form {
     flex-direction: column;
   }
