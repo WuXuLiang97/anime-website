@@ -452,3 +452,147 @@ func (h *VideoHandler) LoginPage(c *gin.Context) {
 func (h *VideoHandler) RegisterPage(c *gin.Context) {
 	c.HTML(http.StatusOK, "register.html", gin.H{})
 }
+
+func (h *VideoHandler) UpdatePage(c *gin.Context) {
+	var animes []models.AnimeInfo
+	if !services.LocalMode {
+		animes = h.videoService.GetAnimesFromDB()
+	}
+
+	c.HTML(http.StatusOK, "update.html", gin.H{
+		"Animes": animes,
+	})
+}
+
+func (h *VideoHandler) UpdateAnime(c *gin.Context) {
+	animeID := c.PostForm("anime_id")
+	if animeID == "" {
+		c.HTML(http.StatusOK, "update.html", gin.H{
+			"Animes":      h.videoService.GetAnimesFromDB(),
+			"Message":     "请选择要更新的动画",
+			"MessageType": "error",
+		})
+		return
+	}
+
+	var anime models.AnimeInfo
+	result := services.DB.Where("id = ?", animeID).First(&anime)
+	if result.Error != nil {
+		c.HTML(http.StatusOK, "update.html", gin.H{
+			"Animes":      h.videoService.GetAnimesFromDB(),
+			"Message":     "找不到指定的动画",
+			"MessageType": "error",
+		})
+		return
+	}
+
+	title := c.PostForm("title")
+	if title != "" {
+		anime.Title = title
+	}
+
+	summary := c.PostForm("summary")
+	if summary != "" {
+		anime.Summary = summary
+	}
+
+	episodes := c.PostForm("episodes")
+	if episodes != "" {
+		var episodesInt int
+		_, err := fmt.Sscanf(episodes, "%d", &episodesInt)
+		if err == nil {
+			anime.Episodes = episodesInt
+		}
+	}
+
+	coverFile, err := c.FormFile("cover_file")
+	if err == nil {
+		if coverFile.Size > 10*1024*1024 {
+			c.HTML(http.StatusOK, "update.html", gin.H{
+				"Animes":      h.videoService.GetAnimesFromDB(),
+				"Message":     "封面图片大小不能超过10MB",
+				"MessageType": "error",
+			})
+			return
+		}
+
+		ext := filepath.Ext(coverFile.Filename)
+		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true}
+		if !allowedExts[strings.ToLower(ext)] {
+			c.HTML(http.StatusOK, "update.html", gin.H{
+				"Animes":      h.videoService.GetAnimesFromDB(),
+				"Message":     "不支持的图片格式，请使用JPG、PNG或WebP格式",
+				"MessageType": "error",
+			})
+			return
+		}
+
+		coverFileName := fmt.Sprintf("cover%s", ext)
+		var coverPath string
+
+		if anime.StorageDisk != "" {
+			disk := services.StorageServiceInstance.GetDiskByName(anime.StorageDisk)
+			if disk != nil {
+				coverPath = filepath.Join(disk.Path, anime.FolderName, coverFileName)
+			} else {
+				coverPath = filepath.Join(hlsDir, anime.FolderName, coverFileName)
+			}
+		} else {
+			coverPath = filepath.Join(hlsDir, anime.FolderName, coverFileName)
+		}
+
+		if err := os.MkdirAll(filepath.Dir(coverPath), 0755); err != nil {
+			c.HTML(http.StatusOK, "update.html", gin.H{
+				"Animes":      h.videoService.GetAnimesFromDB(),
+				"Message":     "创建封面目录失败",
+				"MessageType": "error",
+			})
+			return
+		}
+
+		if err := c.SaveUploadedFile(coverFile, coverPath); err != nil {
+			c.HTML(http.StatusOK, "update.html", gin.H{
+				"Animes":      h.videoService.GetAnimesFromDB(),
+				"Message":     "保存封面图片失败",
+				"MessageType": "error",
+			})
+			return
+		}
+
+		if anime.StorageDisk != "" {
+			anime.Cover = "/storage/" + anime.StorageDisk + "/" + anime.FolderName + "/" + coverFileName
+		} else {
+			anime.Cover = utils.NormalizeURLPath(strings.Join([]string{"/hls", anime.FolderName, coverFileName}, "/"))
+		}
+	}
+
+	result = services.DB.Save(&anime)
+	if result.Error != nil {
+		c.HTML(http.StatusOK, "update.html", gin.H{
+			"Animes":      h.videoService.GetAnimesFromDB(),
+			"Message":     "更新动画信息失败",
+			"MessageType": "error",
+		})
+		return
+	}
+
+	c.HTML(http.StatusOK, "update.html", gin.H{
+		"Animes":      h.videoService.GetAnimesFromDB(),
+		"Message":     "更新成功",
+		"MessageType": "success",
+	})
+}
+
+func (h *VideoHandler) BatchUpdateAnime(c *gin.Context) {
+	go func() {
+		log.Println("开始批量更新动画信息...")
+		animes := h.videoService.ScanVideos()
+		log.Printf("批量更新完成！扫描到 %d 个动画\n", len(animes))
+	}()
+
+	c.HTML(http.StatusOK, "update.html", gin.H{
+		"Animes":      h.videoService.GetAnimesFromDB(),
+		"Message":     "批量更新已开始，请稍候...",
+		"MessageType": "success",
+	})
+}

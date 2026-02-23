@@ -1077,25 +1077,30 @@ body {
 /* ========================== 响应式适配 (重构版) ========================== */
 /* 基础移动端适配 (768px及以下) */
 @media (max-width: 768px) {
+
   /* 1. 全局容器适配 - 修复背景冲突，优化内边距 */
   .container {
     max-width: 100%;
     margin: 0 auto;
-    padding: 10px 15px; /* 左右保留合理内边距，避免内容贴边 */
+    padding: 10px 15px;
+    /* 左右保留合理内边距，避免内容贴边 */
     width: 100%;
-    background: inherit; /* 继承body的深色背景，避免原白色背景冲突 */
+    background: inherit;
+    /* 继承body的深色背景，避免原白色背景冲突 */
   }
 
   /* 2. 哔哩哔哩风格头部重构 - 更紧凑的移动端布局 */
   .bili-header {
-    position: sticky; /* 移动端头部吸顶，提升体验 */
+    position: sticky;
+    /* 移动端头部吸顶，提升体验 */
     top: 0;
     z-index: 999;
   }
 
   .bili-header .bili-header__bar {
     display: grid;
-    height: 56px; /* 降低头部高度，适配移动端 */
+    height: 56px;
+    /* 降低头部高度，适配移动端 */
     padding: 0 12px;
     gap: 8px;
     align-items: center;
@@ -1113,7 +1118,8 @@ body {
 
   .bili-header .search-form {
     flex: 1;
-    min-width: 120px; /* 保证搜索框最小宽度 */
+    min-width: 120px;
+    /* 保证搜索框最小宽度 */
   }
 
   .bili-header .search-box {
@@ -1173,7 +1179,8 @@ body {
   .header-top .header-nav {
     width: 100%;
     justify-content: flex-start;
-    overflow-x: auto; /* 导航项过多时横向滚动 */
+    overflow-x: auto;
+    /* 导航项过多时横向滚动 */
     padding-bottom: 5px;
     gap: 8px;
   }
@@ -1181,7 +1188,8 @@ body {
   .header-top .nav-link {
     padding: 6px 12px;
     font-size: 0.9rem;
-    white-space: nowrap; /* 避免导航文字换行 */
+    white-space: nowrap;
+    /* 避免导航文字换行 */
   }
 
   /* 5. 返回按钮适配 */
@@ -1230,13 +1238,15 @@ body {
   }
 
   .anime-grid {
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); /* 自适应列数，最小宽度更小 */
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    /* 自适应列数，最小宽度更小 */
     gap: 15px;
     padding: 0 10px;
   }
 
   .anime-cover {
-    height: 146px; /* 按比例缩小封面高度 */
+    height: 146px;
+    /* 按比例缩小封面高度 */
   }
 
   .anime-card-title {
@@ -1269,7 +1279,8 @@ body {
   }
 
   .result-cover {
-    height: 200px; /* 移动端封面高度优化 */
+    height: 200px;
+    /* 移动端封面高度优化 */
     border-radius: 8px 8px 0 0;
   }
 
@@ -1284,7 +1295,8 @@ body {
 
   .result-summary {
     font-size: 0.9rem;
-    -webkit-line-clamp: 4; /* 增加显示行数，提升信息展示 */
+    -webkit-line-clamp: 4;
+    /* 增加显示行数，提升信息展示 */
   }
 
   /* 9. 历史记录页面适配 */
@@ -1307,7 +1319,8 @@ body {
   .clear-all-btn {
     padding: 10px 18px;
     font-size: 0.9rem;
-    min-height: 44px; /* 符合移动端可点击区域最小尺寸规范 */
+    min-height: 44px;
+    /* 符合移动端可点击区域最小尺寸规范 */
     min-width: 80px;
   }
 
@@ -1358,34 +1371,3 @@ body {
   }
 }
 
-/* 针对小屏手机的额外适配 (480px及以下) */
-@media (max-width: 480px) {
-  /* 进一步简化头部 */
-  .bili-header .bili-header__bar {
-    height: 50px;
-  }
-
-  /* 隐藏头部非核心导航项 (可选，根据需求调整) */
-  .bili-header .right-entry li:not(:first-child) {
-    display: none;
-  }
-
-  /* 动画网格更紧凑 */
-  .anime-grid {
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 10px;
-  }
-
-  .anime-cover {
-    height: 120px;
-  }
-
-  /* 搜索按钮文字隐藏，只保留图标 (可选) */
-  .search-btn span {
-    display: none;
-  }
-
-  .search-btn {
-    padding: 12px 15px;
-  }
-}

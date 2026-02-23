@@ -86,6 +86,9 @@ func main() {
 	r.GET("/hls-fix", videoHandler.HLSFix)
 	r.GET("/login", videoHandler.LoginPage)
 	r.GET("/register", videoHandler.RegisterPage)
+	r.GET("/update", videoHandler.UpdatePage)
+	r.POST("/update", videoHandler.UpdateAnime)
+	r.POST("/update/batch", videoHandler.BatchUpdateAnime)
 
 	disks := cfg.Storage.Disks
 	for _, disk := range disks {
