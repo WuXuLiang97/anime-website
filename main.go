@@ -100,7 +100,7 @@ func main() {
 
 	port := cfg.Server.Port
 	listenAddr := fmt.Sprintf("[::]:%d", port)
-	primaryIPv6Addr := "240e:351:580a:6400:55ab:f75f:cee7:1da1"
+	primaryIPv6Addr := "240e:351:5805:3000:53e0:27d:bf70:d6d6"
 	logger.Printf("服务器启动成功！监听端口: %d\n", port)
 	logger.Printf("访问地址: http://localhost:%d\n", port)
 	logger.Printf("HLS批量生成页面: http://localhost:%d/hls\n", port)
