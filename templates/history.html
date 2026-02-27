@@ -193,7 +193,8 @@
                             <button class="play-button" 
                                     data-videourl="${item.videoUrl}"
                                     data-title="${decodedAnimeTitle}-${decodedEpisode}"
-                                    data-currenttime="${item.currentTime}">
+                                    data-currenttime="${item.currentTime}"
+                                    data-keyword="${item.keyword || ''}">
                                 继续播放
                             </button>
                             <button class="btn btn-danger" 
@@ -273,7 +274,8 @@
                             <button class="play-button" 
                                     data-videourl="${item.videoUrl}"
                                     data-title="${decodedAnimeTitle}-${decodedEpisode}"
-                                    data-currenttime="${item.currentTime}">
+                                    data-currenttime="${item.currentTime}"
+                                    data-keyword="${item.keyword || ''}">
                                 继续播放
                             </button>
                             <button class="btn btn-danger" 
@@ -290,33 +292,12 @@
         }
 
         // 继续播放
-        function continuePlay(videoUrl, title, currentTime) {
+        function continuePlay(videoUrl, title, currentTime, keyword) {
             console.log('=== 开始继续播放 ===');
-            console.log('原始videoUrl:', videoUrl);
+            console.log('videoUrl:', videoUrl);
             console.log('title:', title);
             console.log('currentTime:', currentTime);
-
-            // 从videoUrl中提取keyword参数
-            let keyword = '';
-            // 处理URL路径，过滤掉空字符串
-            const urlParts = videoUrl.split('/').filter(Boolean);
-            console.log('split后的urlParts:', urlParts);
-
-            if (urlParts.length >= 3) {
-                if (urlParts[0] === 'static' && urlParts[1] === 'videos') {
-                    // 对于/static/videos/动画名称/视频文件.mp4格式
-                    keyword = urlParts[2];
-                    console.log('从videos路径提取的keyword:', keyword);
-                } else if (urlParts[0] === 'static' && urlParts[1] === 'hls') {
-                    // 对于/static/hls/动画名称/集数/playlist.m3u8格式
-                    keyword = urlParts[2];
-                    console.log('从hls路径提取的keyword:', keyword);
-                }
-            } else {
-                console.log('urlParts长度不足3，无法提取keyword');
-            }
-
-            console.log('最终提取的keyword:', keyword);
+            console.log('keyword:', keyword);
 
             // 构建播放URL，包含当前进度和keyword参数
             let playUrl = `/play?video=${encodeURIComponent(videoUrl)}&title=${encodeURIComponent(title)}&currentTime=${currentTime}`;
@@ -400,7 +381,8 @@
                     const videoUrl = e.target.getAttribute('data-videourl');
                     const title = e.target.getAttribute('data-title');
                     const currentTime = e.target.getAttribute('data-currenttime');
-                    continuePlay(videoUrl, title, currentTime);
+                    const keyword = e.target.getAttribute('data-keyword');
+                    continuePlay(videoUrl, title, currentTime, keyword);
                 }
                 // 删除记录按钮
                 else if (e.target.classList.contains('btn-danger') && e.target.textContent.includes('删除记录')) {

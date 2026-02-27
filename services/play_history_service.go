@@ -34,6 +34,7 @@ func (s *PlayHistoryService) SavePlayHistory(userID uint, req *PlayHistoryReques
 			history.AnimeTitle = req.AnimeTitle
 			history.Episode = req.Episode
 			history.VideoURL = req.VideoURL
+			history.Keyword = req.Keyword
 			history.CurrentTime = req.CurrentTime
 			history.Duration = req.Duration
 			history.Progress = req.Progress
@@ -50,6 +51,7 @@ func (s *PlayHistoryService) SavePlayHistory(userID uint, req *PlayHistoryReques
 				AnimeTitle:    req.AnimeTitle,
 				Episode:       req.Episode,
 				VideoURL:      req.VideoURL,
+				Keyword:       req.Keyword,
 				CurrentTime:   req.CurrentTime,
 				Duration:      req.Duration,
 				Progress:      req.Progress,
@@ -73,6 +75,7 @@ func (s *PlayHistoryService) SavePlayHistory(userID uint, req *PlayHistoryReques
 			existingHistory.AnimeTitle = req.AnimeTitle
 			existingHistory.Episode = req.Episode
 			existingHistory.VideoURL = req.VideoURL
+			existingHistory.Keyword = req.Keyword
 			existingHistory.CurrentTime = req.CurrentTime
 			existingHistory.Duration = req.Duration
 			existingHistory.Progress = req.Progress
@@ -88,6 +91,7 @@ func (s *PlayHistoryService) SavePlayHistory(userID uint, req *PlayHistoryReques
 				AnimeTitle:    req.AnimeTitle,
 				Episode:       req.Episode,
 				VideoURL:      req.VideoURL,
+				Keyword:       req.Keyword,
 				CurrentTime:   req.CurrentTime,
 				Duration:      req.Duration,
 				Progress:      req.Progress,
@@ -202,6 +206,7 @@ type PlayHistoryRequest struct {
 	CurrentTime   float64 `json:"currentTime"`
 	Duration      float64 `json:"duration"`
 	Progress      float64 `json:"progress"`
+	Keyword       string  `json:"keyword"`
 	SegmentID     string  `json:"segmentId"`
 	SegmentOffset float64 `json:"segmentOffset"`
 }

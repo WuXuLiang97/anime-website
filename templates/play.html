@@ -674,15 +674,20 @@
         return;
       }
 
+      // 从URL参数中获取keyword
+      const urlParams = new URLSearchParams(window.location.search);
+      const keyword = urlParams.get('keyword') || '';
+
       // 准备API请求数据
       const requestData = {
-        videoId: videoInfo.videoUrl, // 使用视频URL作为唯一标识
+        videoId: videoInfo.videoUrl,
         animeTitle: videoInfo.animeTitle,
         episode: videoInfo.episode,
         videoUrl: videoInfo.videoUrl,
         currentTime: videoInfo.currentTime,
         duration: videoInfo.duration,
-        progress: videoInfo.progress
+        progress: videoInfo.progress,
+        keyword: keyword
       };
 
       console.log('准备发送的API请求数据:', requestData);
@@ -711,6 +716,8 @@
           if (typeof Storage !== "undefined") {
             let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
             const updatedHistory = history.filter(item => item.animeTitle !== videoInfo.animeTitle);
+            // 添加keyword到videoInfo
+            videoInfo.keyword = keyword;
             updatedHistory.unshift(videoInfo);
             if (updatedHistory.length > MAX_HISTORY_ITEMS) {
               updatedHistory.pop();

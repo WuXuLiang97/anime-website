@@ -121,6 +121,7 @@ func (h *PlayHistoryHandler) GetAllPlayHistory(c *gin.Context) {
 		AnimeTitle  string  `json:"animeTitle"`
 		Episode     string  `json:"episode"`
 		VideoURL    string  `json:"videoUrl"`
+		Keyword     string  `json:"keyword"`
 		CurrentTime float64 `json:"currentTime"`
 		Duration    float64 `json:"duration"`
 		Progress    float64 `json:"progress"`
@@ -135,6 +136,7 @@ func (h *PlayHistoryHandler) GetAllPlayHistory(c *gin.Context) {
 			AnimeTitle:  h.AnimeTitle,
 			Episode:     h.Episode,
 			VideoURL:    h.VideoURL,
+			Keyword:     h.Keyword,
 			CurrentTime: h.CurrentTime,
 			Duration:    h.Duration,
 			Progress:    h.Progress,
