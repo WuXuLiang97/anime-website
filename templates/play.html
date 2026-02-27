@@ -82,6 +82,7 @@
     /* 核心播放区域布局：左播放器+右选集 */
     .play-main-content {
       display: flex;
+      align-items: flex-start;
       gap: 20px;
       margin-bottom: 20px;
       width: 100%;
@@ -119,13 +120,14 @@
     /* 右侧选集列表 */
     .episode-selector {
       flex: 3;
-      /* 选集占3份 */
       min-width: 280px;
       max-width: 400px;
       border-radius: 4px;
       padding: 15px;
-      height: fit-content;
-      /* 高度随内容自适应 */
+      display: flex;
+      flex-direction: column;
+      align-self: flex-start;
+      overflow: hidden;
     }
 
     .episode-selector h3 {
@@ -134,13 +136,34 @@
       margin-bottom: 10px;
       padding-bottom: 8px;
       border-bottom: 1px solid #e5e5e5;
+      flex-shrink: 0;
     }
 
     .episode-buttons {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-      /* 自动网格排列，贴合B站 */
       gap: 8px;
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 5px;
+    }
+
+    .episode-buttons::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .episode-buttons::-webkit-scrollbar-track {
+      background: #1E2126;
+      border-radius: 3px;
+    }
+
+    .episode-buttons::-webkit-scrollbar-thumb {
+      background: #4a4a4a;
+      border-radius: 3px;
+    }
+
+    .episode-buttons::-webkit-scrollbar-thumb:hover {
+      background: #5a5a5a;
     }
 
     .episode-btn {
@@ -866,6 +889,9 @@
       console.log('视频元数据加载完成');
       showControls(); // 初始保持控制栏显示
 
+      // 同步选集列表高度
+      syncEpisodeSelectorHeight();
+
       // 检查是否有当前播放位置参数
       const urlParams = new URLSearchParams(window.location.search);
       const currentTime = urlParams.get('currentTime');
@@ -950,9 +976,23 @@
 
         // 显示控制栏
         showControls();
-        if (idleTimer) clearTimeout(idleTimer); // 切换集数后重置计时器
+        if (idleTimer) clearTimeout(idleTimer);
       });
     });
+
+    // 同步选集列表高度与播放器高度
+    function syncEpisodeSelectorHeight() {
+      const video = document.getElementById('mainVideo');
+      const episodeSelector = document.querySelector('.episode-selector');
+      if (video && episodeSelector) {
+        const videoRect = video.getBoundingClientRect();
+        episodeSelector.style.maxHeight = videoRect.height + 'px';
+      }
+    }
+
+    // 页面加载和窗口大小变化时同步高度
+    window.addEventListener('load', syncEpisodeSelectorHeight);
+    window.addEventListener('resize', syncEpisodeSelectorHeight);
   </script>
 </body>
 
