@@ -953,6 +953,11 @@
         // 更新初始视频URL，确保保存的是当前集数的播放记录
         document.getElementById('initialVideoUrl').value = videoUrl;
 
+        // 清除URL中的currentTime参数，避免切换剧集后从旧进度开始
+        const url = new URL(window.location.href);
+        url.searchParams.delete('currentTime');
+        window.history.replaceState({}, '', url.toString());
+
         // 初始化播放器
         const isSpecialFormat = initPlayer(videoUrl);
 
